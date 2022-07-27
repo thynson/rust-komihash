@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub fn test_vector() -> Vec<(u64, u64, u64, Vec<u8>)> {
     vec![
         (0xb7683ea7430132b4u64, 0xb22efc38246bbc44u64, 0x28e837c5cb41dc3eu64, Vec::from([])),
