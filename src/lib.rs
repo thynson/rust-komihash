@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn test_hasher() {
         for (hash0, hash1, seed, content) in test_vector() {
-            let mut hasher = KomiHasher::new_with_seed(0);
+            let mut hasher = KomiHasher::new();
             hasher.write(&content);
             assert_eq!(hasher.finish(), hash0, "hash content: {:?}, without seed", content);
 
@@ -366,26 +366,28 @@ mod tests {
             hasher.write(&content);
             assert_eq!(hasher.finish(), hash1, "hash content: {:?}, with seed: {}", content, seed);
 
-            let mut hasher = KomiHasher::new_with_seed(0);
+            let mut hasher = KomiHasher::new();
             let mut bytes: &[u8] = &content;
 
-            while bytes.len() > 0 {
-                let slice = &bytes[..min(bytes.len(), 17)];
-                bytes = &bytes[slice.len()..];
-                hasher.write(slice);
+            for size in 1..127 {
+                while bytes.len() > 0 {
+                    let slice = &bytes[..min(bytes.len(), size)];
+                    bytes = &bytes[slice.len()..];
+                    hasher.write(slice);
+                }
+                assert_eq!(hasher.finish(), hash0, "incrementally hash content: {:?}, without seed", content);
+
+
+                let mut hasher = KomiHasher::new_with_seed(seed);
+                let mut bytes: &[u8] = &content;
+
+                while bytes.len() > 0 {
+                    let slice = &bytes[..min(bytes.len(), size)];
+                    bytes = &bytes[slice.len()..];
+                    hasher.write(slice);
+                }
+                assert_eq!(hasher.finish(), hash1, "incrementally hash content: {:?}, with seed: {}", content, seed);
             }
-            assert_eq!(hasher.finish(), hash0, "incrementally hash content: {:?}, without seed", content);
-
-
-            let mut hasher = KomiHasher::new_with_seed(seed);
-            let mut bytes: &[u8] = &content;
-
-            while bytes.len() > 0 {
-                let slice = &bytes[..min(bytes.len(), 17)];
-                bytes = &bytes[slice.len()..];
-                hasher.write(slice);
-            }
-            assert_eq!(hasher.finish(), hash1, "incrementally hash content: {:?}, with seed: {}", content, seed);
         }
     }
 }
