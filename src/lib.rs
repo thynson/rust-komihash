@@ -2,8 +2,8 @@
  * Komi Hash
  *
  * Translate from https://github.com/dynatrace-oss/hash4j/blob/main/src/main/java/com/dynatrace/hash4j/hashing/Komihash4_3.java
- * TODO:  More Test Vector Item
- */ use std::hash::Hasher;
+ */
+use std::hash::Hasher;
 use std::num::Wrapping;
 use std::ops::{Add, BitAnd, BitXor};
 
@@ -279,16 +279,16 @@ impl Hasher for KomiHasher {
             let b0 = read_word(&remaining[0..8]);
             r2l = r2l.bitxor(b0);
             let ml8 = (remaining.len() - 8) << 3;
-            let fb = Wrapping((1 << (remaining[remaining.len() - 1] >> 7)) << ml8);
+            let fb = Wrapping((1u64 << (remaining[remaining.len() - 1] >> 7)) << ml8);
             let b1 = read_word(&remaining[8..]);
             r2h = r2h.bitxor(fb | b1)
         } else if remaining.len() > 0 {
             let ml8 = remaining.len() << 3;
             let b0 = read_word(remaining);
-            let fb = Wrapping((1 << (remaining[remaining.len() - 1] >> 7)) << ml8);
+            let fb = Wrapping((1u64 << (remaining[remaining.len() - 1] >> 7)) << ml8);
             r2l = r2l.bitxor(fb | b0)
         } else if self.bytes_count > 0 {
-            let fb = Wrapping(1u64 << ((last_word.0 & 0xFF) >> 7));
+            let fb = Wrapping(1u64 << (last_word.0 >> 63));
             r2l = r2l.bitxor(fb);
         }
 
@@ -336,71 +336,57 @@ impl Hasher for KomiHasher {
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::min;
     use std::hash::Hasher;
 
-    use crate::komi_hash;
+    use crate::{komi_hash, KomiHasher};
+
+    mod test_vector;
+
+    use test_vector::test_vector;
+
 
     #[test]
     fn test() {
-        assert_eq!(komi_hash(&[], 0), 0xb7683ea7430132b4);
 
-        assert_eq!(komi_hash(&[0x6c], 0), 0x8cd4babbcfa70815);
-
-        assert_eq!(komi_hash(&[0xF0, 0x44, 0x3A, 0x42, 0xD7, 0xCF], 0), 0x238bafe62ca1c1df);
-
-        assert_eq!(komi_hash("KomI".as_bytes(), 0), 0xae57ebb42ba3d5e6);
-
-        assert_eq!(komi_hash("KomiHashV4.3".as_bytes(), 0), 0x970c438a6199b736);
-
-        assert_eq!(komi_hash("komihashkomihashkomihashkomihash\
-        komihashkomihashkomihashkomihash".as_bytes(), 0), 0x85ce269462f3e931);
-
-        assert_eq!(komi_hash("komihashkomihashkomihashkomihashkomihash\
-        komihashkomihashkomihashkomi".as_bytes(), 0), 0x5279802f7cc901ed);
-
-        assert_eq!(komi_hash("komihashkomihashkomihashkomihashkomihash\
-        komihashkomihashkomihashkomihashkomihashkomihashkomihashkomihash\
-        komihashkomihashkomihashkomiha".as_bytes(), 0), 0x73f71bea677f696b);
+        for (hash0, hash1, seed, content) in test_vector() {
+            assert_eq!(komi_hash(&content, 0), hash0, "content: {:?}, without seed", content);
+            assert_eq!(komi_hash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
+        }
     }
 
     #[test]
     fn test_hasher() {
-        let mut hasher = super::KomiHasher::new();
-        hasher.write([].as_ref());
-        assert_eq!(hasher.finish(), 0xB7683EA7430132B4);
+        for (hash0, hash1, seed, content) in test_vector() {
+            let mut hasher = KomiHasher::new_with_seed(0);
+            hasher.write(&content);
+            assert_eq!(hasher.finish(), hash0, "hash content: {:?}, without seed", content);
 
-        let mut hasher = super::KomiHasher::new();
-        hasher.write([0x6c].as_ref());
-        assert_eq!(hasher.finish(), 0x8CD4BABBCFA70815);
+            let mut hasher = KomiHasher::new_with_seed(seed);
+            hasher.write(&content);
+            assert_eq!(hasher.finish(), hash1, "hash content: {:?}, with seed: {}", content, seed);
 
-        let mut hasher = super::KomiHasher::new();
-        hasher.write([0xF0, 0x44, 0x3A, 0x42, 0xD7, 0xCF].as_ref());
-        assert_eq!(hasher.finish(), 0x238bafe62ca1c1df);
+            let mut hasher = KomiHasher::new_with_seed(0);
+            let mut bytes: &[u8] = &content;
 
-        let mut hasher = super::KomiHasher::new();
-        hasher.write("komihashkomihashkomihashkomihashkomihashkomihash\
-        komihashkomihash".as_bytes().as_ref());
+            while bytes.len() > 0 {
+                let slice = &bytes[..min(bytes.len(), 17)];
+                bytes = &bytes[slice.len()..];
+                hasher.write(slice);
+            }
+            assert_eq!(hasher.finish(), hash0, "incrementally hash content: {:?}, without seed", content);
 
-        assert_eq!(hasher.finish(), 0x85ce269462f3e931);
-        let mut hasher = super::KomiHasher::new();
-        hasher.write("komihashkomihashkomihashkomihashkomihashkomihash\
-        komihashkomihashkomi".as_bytes().as_ref());
-        assert_eq!(hasher.finish(), 0x5279802f7cc901ed);
 
-        let mut hasher = super::KomiHasher::new();
-        hasher.write("komihashkomihashkomihashkomihashkomihashkomihash\
-        komihashkomihashkomihashkomihashkomihashkomihashkomihashkomihash\
-        komihashkomihashkomiha".as_bytes().as_ref());
-        assert_eq!(hasher.finish(), 0x73f71bea677f696b);
+            let mut hasher = KomiHasher::new_with_seed(seed);
+            let mut bytes: &[u8] = &content;
 
-        let mut hasher = super::KomiHasher::new();
-        hasher.write(("komihashkomihashkomihashk").as_bytes().as_ref());
-        hasher.write(("omihashkomihashkomihashkomihashkom").as_bytes().as_ref());
-        hasher.write(
-            ("ihashkomihashkomihashkomihashkomihashkomihashkomihashkomihashkomihashkom").as_bytes().as_ref(),
-        );
-        hasher.write(("iha").as_bytes().as_ref());
-
-        assert_eq!(hasher.finish(), 0x73f71bea677f696b);
+            while bytes.len() > 0 {
+                let slice = &bytes[..min(bytes.len(), 17)];
+                bytes = &bytes[slice.len()..];
+                hasher.write(slice);
+            }
+            assert_eq!(hasher.finish(), hash1, "incrementally hash content: {:?}, with seed: {}", content, seed);
+        }
     }
 }
+
