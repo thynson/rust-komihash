@@ -33,12 +33,25 @@
  * limitations under the License.
  */
 
+
+#[macro_use]
+#[cfg(feature="test")]
+extern crate lazy_static;
+
 use std::hash::Hasher;
 use std::num::Wrapping;
 use std::ops::{Add, BitAnd, BitXor};
 
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
 
+///
+/// Streaming hash state of komi-hash.
+///
+/// Only recommended for use when input size is large enough. To archive best performance,
+/// a buffer of which size is multiple times of 64 shall be provided each time when calling `write`,
+/// otherwise the content in the provide buffer has to be copied into the internal buffer,
+/// resulting in performance degrade.
+///
 pub struct KomiHasher {
     seed1: Wrapping<u64>,
     seed2: Wrapping<u64>,
@@ -66,6 +79,11 @@ fn read_word(buffer: &[u8]) -> Wrapping<u64> {
     return Wrapping(u64::from_le_bytes(tmp_buffer));
 }
 
+///
+/// One-shot komi hash function
+///
+/// Recommended for use unless the input size is too large.
+///
 pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
     let mut seed1 = Wrapping(0x243f6a8885a308d3 ^ (seed & 0x5555555555555555));
     let mut seed5 = Wrapping(0x452821e638d01377 ^ (seed & 0xaaaaaaaaaaaaaaaa));
@@ -180,6 +198,17 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
 }
 
 impl KomiHasher {
+
+    ///
+    /// Create a new komi hash instance with default seed
+    ///
+    pub fn new() -> KomiHasher {
+        KomiHasher::new_with_seed(0)
+    }
+
+    ///
+    /// Create a new komi hash instance with specified seed
+    ///
     pub fn new_with_seed(seed: u64) -> KomiHasher {
         let mut seed1 = Wrapping(0x243f6a8885a308d3 ^ (seed & 0x5555555555555555));
         let mut seed5 = Wrapping(0x452821e638d01377 ^ (seed & 0xaaaaaaaaaaaaaaaa));
@@ -210,7 +239,6 @@ impl KomiHasher {
     }
 
     fn process_buffer(&mut self) {
-        // let mut tmp = [0u8; 8];
         let b0 = read_word(&self.buffer[0..8]);
         let b1 = read_word(&self.buffer[8..16]);
         let b2 = read_word(&self.buffer[16..24]);
@@ -249,9 +277,6 @@ impl KomiHasher {
         self.seed1 = self.seed8.bitxor(r1l);
     }
 
-    pub fn new() -> KomiHasher {
-        KomiHasher::new_with_seed(0)
-    }
 }
 
 impl Hasher for KomiHasher {
@@ -366,12 +391,18 @@ impl Hasher for KomiHasher {
 
 #[cfg(test)]
 mod tests {
+
+
     use std::cmp::min;
     use std::hash::Hasher;
 
     use crate::{komi_hash, KomiHasher};
 
     mod test_vector;
+
+    #[cfg(test)]
+    #[cfg(feature = "test")]
+    mod benches;
 
     use test_vector::test_vector;
 
@@ -420,5 +451,6 @@ mod tests {
             }
         }
     }
+
 }
 
