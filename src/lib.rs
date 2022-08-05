@@ -78,11 +78,11 @@ fn komi_hash_fast_path(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrappi
         let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
         let b1 = read_word(&bytes[8..]).bitand(mask);
         r2h = r2h.bitxor(fb | b1);
-    } else if bytes.len() > 0{
+    } else if bytes.len() > 0 {
         let ml8 = bytes.len() << 3;
         let mask = Wrapping((1u64 << ml8) - 1);
         let b0 = read_word(bytes).bitand(mask);
-        let fb = Wrapping(1u64 << (b0.0 >> (ml8 -1)) << ml8);
+        let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
         r2l = r2l.bitxor(fb | b0);
     }
 
@@ -93,7 +93,7 @@ fn komi_hash_fast_path(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrappi
     let (r4l, r4h) = multiply128(seed1, seed5);
     seed5 = seed5.add(r4h);
     seed1 = seed5.bitxor(r4l);
-    return seed1.0
+    return seed1.0;
 }
 
 #[inline]
@@ -108,12 +108,12 @@ fn komi_hash_fast_path2(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapp
         let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
         let b1 = read_word(&bytes[8..]).bitand(mask);
         r2h = r2h.bitxor(fb | b1);
-    } else if bytes.len() > 0{
+    } else if bytes.len() > 0 {
         let ml8 = bytes.len() << 3;
         // let fbmask = 0x1000_0000_0000_0000u64 >> (64-ml8);
         let mask = Wrapping((1u64 << ml8) - 1);
         let b0 = read_word(bytes).bitand(mask);
-        let fb = Wrapping(1u64 << (b0.0 >> (ml8 -1)) << ml8);
+        let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
         r2l = r2l.bitxor(fb | b0);
     } else {
         let fb = Wrapping(1u64 << (last_word.0 >> 63));
@@ -127,7 +127,7 @@ fn komi_hash_fast_path2(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapp
     let (r4l, r4h) = multiply128(seed1, seed5);
     seed5 = seed5.add(r4h);
     seed1 = seed5.bitxor(r4l);
-    return seed1.0
+    return seed1.0;
 }
 
 pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
@@ -145,21 +145,12 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
     let mut seed7 = Wrapping(0xc0ac29b7c97c50dd).bitxor(seed5);
     let mut seed8 = Wrapping(0x3f84d5b5b5470917).bitxor(seed5);
     let mut last_word = Wrapping(0);
-    if bytes.len() == 0 {
-        let (r3l, r3h) = multiply128(seed1, seed5);
-        seed5 = seed5.add(r3h);
-        seed1 = seed5.bitxor(r3l);
-
-        let (r4l, r4h) = multiply128(seed1, seed5);
-        seed5 = seed5.add(r4h);
-        seed1 = seed5.bitxor(r4l);
-
-        return seed1.0
-    }
 
     if bytes.len() < 16 {
         return komi_hash_fast_path(bytes, seed1, seed5);
-    } else if bytes.len() < 32 {
+    }
+
+    if bytes.len() < 32 {
         let tmp1 = read_word(&bytes[..8]);
         let tmp2 = read_word(&bytes[8..16]);
         let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
@@ -169,7 +160,23 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
         return komi_hash_fast_path2(bytes, seed1, seed5, tmp2);
     }
 
-    if bytes.len() > 63 {
+    if bytes.len() < 64 {
+        let tmp1 = read_word(&bytes[..8]);
+        let tmp2 = read_word(&bytes[8..16]);
+        let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
+        seed5 = seed5.add(r1h);
+        seed1 = seed5.bitxor(r1l);
+
+        let tmp3 = read_word(&bytes[16..24]);
+        let tmp4 = read_word(&bytes[24..32]);
+        last_word = tmp4;
+
+        let (r2l, r2h) = multiply128(tmp3.bitxor(seed1), tmp4.bitxor(seed5));
+        seed5 = seed5.add(r2h);
+        seed1 = seed5.bitxor(r2l);
+
+        bytes = &bytes[32..];
+    } else {
         loop {
             let b0 = read_word(&bytes[..8]);
             let b1 = read_word(&bytes[8..16]);
@@ -465,7 +472,6 @@ mod tests {
 
     #[test]
     fn test() {
-
         for (hash0, hash1, seed, content) in test_vector() {
             assert_eq!(komi_hash(&content, 0), hash0, "content: {:?}, without seed", content);
             assert_eq!(komi_hash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
