@@ -489,10 +489,10 @@ mod tests {
             hasher.write(&content);
             assert_eq!(hasher.finish(), hash1, "hash content: {:?}, with seed: {}", content, seed);
 
-            let mut hasher = KomiHasher::new();
-            let mut bytes: &[u8] = &content;
 
             for size in 1..127 {
+                let mut hasher = KomiHasher::new();
+                let mut bytes: &[u8] = &content;
                 while bytes.len() > 0 {
                     let slice = &bytes[..min(bytes.len(), size)];
                     bytes = &bytes[slice.len()..];
