@@ -8,3 +8,9 @@ description = "Komi hash"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+
+[dev-dependencies]
+pcg="4.1.0"
+lazy_static = "1.4.0"
+rand_core = "0.5.1"
