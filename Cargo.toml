@@ -14,3 +14,8 @@ description = "Komi hash"
 pcg="4.1.0"
 lazy_static = "1.4.0"
 rand_core = "0.5.1"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = true

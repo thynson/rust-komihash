@@ -37,7 +37,7 @@
 
 use std::hash::Hasher;
 use std::num::Wrapping;
-use std::ops::{Add, BitAnd, BitXor};
+use std::ops::{Add, BitAnd, BitXor, BitOr};
 
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
 
@@ -72,8 +72,47 @@ fn multiply128(m1: Wrapping<u64>, m2: Wrapping<u64>) -> (Wrapping<u64>, Wrapping
 #[inline]
 fn read_word(buffer: &[u8]) -> Wrapping<u64> {
     let mut tmp_buffer = [0u8; 8];
-    tmp_buffer[..buffer.len()].copy_from_slice(buffer);
+    tmp_buffer.copy_from_slice(&buffer[0..8]);
     return Wrapping(u64::from_le_bytes(tmp_buffer));
+}
+
+#[inline]
+fn read_half_word(buffer: &[u8]) -> Wrapping<u64> {
+    let mut tmp_buffer = [0u8; 4];
+    tmp_buffer.copy_from_slice(buffer);
+    return Wrapping(u32::from_le_bytes(tmp_buffer) as u64);
+}
+
+#[inline]
+fn read_quarter_word(buffer: &[u8]) -> Wrapping<u64> {
+    let mut tmp_buffer = [0u8; 2];
+    tmp_buffer.copy_from_slice(buffer);
+    return Wrapping(u16::from_le_bytes(tmp_buffer) as u64);
+}
+
+#[inline]
+fn read_partial_word(buff: &[u8]) -> Wrapping<u64> {
+    match buff.len() {
+        0 => Wrapping(0u64),
+        1 => Wrapping(buff[0] as u64),
+        2 => read_quarter_word(&buff[0..2]),
+        3 => {
+            read_quarter_word(&buff[0..2]) | (Wrapping(buff[2] as u64) << 16)
+        }
+        4 => {
+            read_half_word(&buff[0..4])
+        }
+        5 => {
+            read_half_word(&buff[0..4]) | (Wrapping(buff[4] as u64) << 32)
+        }
+        6 => {
+            read_half_word(&buff[0..4]) | (read_quarter_word(&buff[4..6])<< 32)
+        }
+        7 => {
+            read_half_word(&buff[0..4]) | (read_quarter_word(&buff[4..6]) << 32) | (Wrapping(buff[6] as u64) << 48)
+        }
+        _ => read_word(buff)
+    }
 }
 
 #[inline]
@@ -86,12 +125,12 @@ fn komi_hash_fast_path(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrappi
         let ml8 = (bytes.len() - 8) << 3;
         let mask = Wrapping((1u64 << ml8) - 1);
         let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
-        let b1 = read_word(&bytes[8..]).bitand(mask);
+        let b1 = read_partial_word(&bytes[8..]).bitand(mask);
         r2h = r2h.bitxor(fb | b1);
     } else if bytes.len() > 0 {
         let ml8 = bytes.len() << 3;
         let mask = Wrapping((1u64 << ml8) - 1);
-        let b0 = read_word(bytes).bitand(mask);
+        let b0 = read_partial_word(bytes).bitand(mask);
         let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
         r2l = r2l.bitxor(fb | b0);
     }
@@ -116,13 +155,13 @@ fn komi_hash_fast_path2(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapp
         let ml8 = (bytes.len() - 8) << 3;
         let mask = Wrapping((1u64 << ml8) - 1);
         let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
-        let b1 = read_word(&bytes[8..]).bitand(mask);
+        let b1 = read_partial_word(&bytes[8..]).bitand(mask);
         r2h = r2h.bitxor(fb | b1);
     } else if bytes.len() > 0 {
         let ml8 = bytes.len() << 3;
         // let fbmask = 0x1000_0000_0000_0000u64 >> (64-ml8);
         let mask = Wrapping((1u64 << ml8) - 1);
-        let b0 = read_word(bytes).bitand(mask);
+        let b0 = read_partial_word(bytes).bitand(mask);
         let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
         r2l = r2l.bitxor(fb | b0);
     } else {
@@ -246,15 +285,13 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
         let b0 = read_word(&bytes[0..8]);
         r2l = r2l.bitxor(b0);
         let ml8 = (bytes.len() - 8) << 3;
-        let mask = Wrapping((1u64 << ml8) - 1);
         let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
-        let b1 = read_word(&bytes[8..]).bitand(mask);
+        let b1 = read_partial_word(&bytes[8..]);
         r2h = r2h.bitxor(fb | b1)
     } else if bytes.len() > 0 {
         let ml8 = bytes.len() << 3;
         let fb = Wrapping(1u64 << (bytes[bytes.len() - 1] >> 7) << ml8);
-        let mask = Wrapping((1u64 << ml8) - 1);
-        let b0 = read_word(bytes).bitand(mask);
+        let b0 = read_partial_word(bytes);
         r2l = r2l.bitxor(fb | b0);
     } else if non_zero_bytes_count {
         let fb = Wrapping(1u64 << (last_word.0 >> 63));
@@ -273,7 +310,6 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
 }
 
 impl KomiHasher {
-
     ///
     /// Create a new komi hash instance with default seed
     ///
@@ -351,7 +387,6 @@ impl KomiHasher {
         self.seed4 = self.seed7.bitxor(r4l);
         self.seed1 = self.seed8.bitxor(r1l);
     }
-
 }
 
 impl Hasher for KomiHasher {
@@ -410,11 +445,11 @@ impl Hasher for KomiHasher {
             r2l = r2l.bitxor(b0);
             let ml8 = (remaining.len() - 8) << 3;
             let fb = Wrapping((1u64 << (remaining[remaining.len() - 1] >> 7)) << ml8);
-            let b1 = read_word(&remaining[8..]);
+            let b1 = read_partial_word(&remaining[8..]);
             r2h = r2h.bitxor(fb | b1)
         } else if remaining.len() > 0 {
             let ml8 = remaining.len() << 3;
-            let b0 = read_word(remaining);
+            let b0 = read_partial_word(remaining);
             let fb = Wrapping((1u64 << (remaining[remaining.len() - 1] >> 7)) << ml8);
             r2l = r2l.bitxor(fb | b0)
         } else if self.bytes_count > 0 {
@@ -466,14 +501,13 @@ impl Hasher for KomiHasher {
 
 #[cfg(test)]
 mod tests {
-
-
     use std::cmp::min;
     use std::hash::Hasher;
 
     use crate::{komi_hash, KomiHasher};
 
     mod test_vector;
+
     use test_vector::test_vector;
 
 
@@ -520,6 +554,5 @@ mod tests {
             }
         }
     }
-
 }
 
