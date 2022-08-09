@@ -160,23 +160,7 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
         return komi_hash_fast_path2(bytes, seed1, seed5, tmp2);
     }
 
-    if bytes.len() < 64 {
-        let tmp1 = read_word(&bytes[..8]);
-        let tmp2 = read_word(&bytes[8..16]);
-        let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
-        seed5 = seed5.add(r1h);
-        seed1 = seed5.bitxor(r1l);
-
-        let tmp3 = read_word(&bytes[16..24]);
-        let tmp4 = read_word(&bytes[24..32]);
-        last_word = tmp4;
-
-        let (r2l, r2h) = multiply128(tmp3.bitxor(seed1), tmp4.bitxor(seed5));
-        seed5 = seed5.add(r2h);
-        seed1 = seed5.bitxor(r2l);
-
-        bytes = &bytes[32..];
-    } else {
+    if bytes.len() >= 64 {
         loop {
             let b0 = read_word(&bytes[..8]);
             let b1 = read_word(&bytes[8..16]);
