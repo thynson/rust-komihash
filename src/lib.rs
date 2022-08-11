@@ -93,7 +93,7 @@ fn read_quarter_word(buffer: &[u8]) -> Wrapping<u64> {
 #[inline]
 fn read_partial_word(buff: &[u8]) -> Wrapping<u64> {
     match buff.len() {
-        0 => Wrapping(0u64),
+        0 => Wrapping(0),
         1 => Wrapping(buff[0] as u64),
         2 => read_quarter_word(&buff[0..2]),
         3 => {
@@ -111,12 +111,12 @@ fn read_partial_word(buff: &[u8]) -> Wrapping<u64> {
         7 => {
             read_half_word(&buff[0..4]) | (read_quarter_word(&buff[4..6]) << 32) | (Wrapping(buff[6] as u64) << 48)
         }
-        _ => read_word(buff)
+        _ => unreachable!()
     }
 }
 
 #[inline]
-fn komi_hash_fast_path(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<u64>) -> u64 {
+fn komi_hash_finish(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<u64>, content_len: usize, last_word: Wrapping<u64>) -> u64 {
     let mut r2l = seed1;
     let mut r2h = seed5;
     if bytes.len() > 7 {
@@ -133,38 +133,7 @@ fn komi_hash_fast_path(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrappi
         let b0 = read_partial_word(bytes).bitand(mask);
         let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
         r2l = r2l.bitxor(fb | b0);
-    }
-
-    let (r3l, r3h) = multiply128(r2l, r2h);
-    seed5 = seed5.add(r3h);
-    seed1 = seed5.bitxor(r3l);
-
-    let (r4l, r4h) = multiply128(seed1, seed5);
-    seed5 = seed5.add(r4h);
-    seed1 = seed5.bitxor(r4l);
-    return seed1.0;
-}
-
-#[inline]
-fn komi_hash_fast_path2(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<u64>, last_word: Wrapping<u64>) -> u64 {
-    let mut r2l = seed1;
-    let mut r2h = seed5;
-    if bytes.len() > 7 {
-        let b0 = read_word(&bytes[0..8]);
-        r2l = r2l.bitxor(b0);
-        let ml8 = (bytes.len() - 8) << 3;
-        let mask = Wrapping((1u64 << ml8) - 1);
-        let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
-        let b1 = read_partial_word(&bytes[8..]).bitand(mask);
-        r2h = r2h.bitxor(fb | b1);
-    } else if bytes.len() > 0 {
-        let ml8 = bytes.len() << 3;
-        // let fbmask = 0x1000_0000_0000_0000u64 >> (64-ml8);
-        let mask = Wrapping((1u64 << ml8) - 1);
-        let b0 = read_partial_word(bytes).bitand(mask);
-        let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
-        r2l = r2l.bitxor(fb | b0);
-    } else {
+    } else if content_len > 0 {
         let fb = Wrapping(1u64 << (last_word.0 >> 63));
         r2l = r2l.bitxor(fb);
     }
@@ -187,7 +156,7 @@ fn komi_hash_fast_path2(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapp
 pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
     let mut seed1 = Wrapping(0x243f6a8885a308d3 ^ (seed & 0x5555555555555555));
     let mut seed5 = Wrapping(0x452821e638d01377 ^ (seed & 0xaaaaaaaaaaaaaaaa));
-    let non_zero_bytes_count = bytes.len() > 0;
+    let len = bytes.len();
 
     let (l, h) = multiply128(seed1, seed5);
     seed5 = seed5.add(h);
@@ -201,17 +170,18 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
     let mut last_word = Wrapping(0);
 
     if bytes.len() < 16 {
-        return komi_hash_fast_path(bytes, seed1, seed5);
+        return komi_hash_finish(bytes, seed1, seed5, bytes.len(), last_word);
     }
 
     if bytes.len() < 32 {
         let tmp1 = read_word(&bytes[..8]);
         let tmp2 = read_word(&bytes[8..16]);
+        last_word = tmp2;
         let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
         seed5 = seed5.add(r1h);
         seed1 = seed5.bitxor(r1l);
         bytes = &bytes[16..];
-        return komi_hash_fast_path2(bytes, seed1, seed5, tmp2);
+        return komi_hash_finish(bytes, seed1, seed5, len, last_word);
     }
 
     if bytes.len() >= 64 {
@@ -278,35 +248,7 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
         bytes = &bytes[16..];
     }
 
-    let mut r2h = seed5;
-    let mut r2l = seed1;
-
-    if bytes.len() > 7 {
-        let b0 = read_word(&bytes[0..8]);
-        r2l = r2l.bitxor(b0);
-        let ml8 = (bytes.len() - 8) << 3;
-        let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
-        let b1 = read_partial_word(&bytes[8..]);
-        r2h = r2h.bitxor(fb | b1)
-    } else if bytes.len() > 0 {
-        let ml8 = bytes.len() << 3;
-        let fb = Wrapping(1u64 << (bytes[bytes.len() - 1] >> 7) << ml8);
-        let b0 = read_partial_word(bytes);
-        r2l = r2l.bitxor(fb | b0);
-    } else if non_zero_bytes_count {
-        let fb = Wrapping(1u64 << (last_word.0 >> 63));
-        r2l = r2l.bitxor(fb);
-    }
-
-    let (r3l, r3h) = multiply128(r2l, r2h);
-    seed5 = seed5.add(r3h);
-    seed1 = seed5.bitxor(r3l);
-
-    let (r4l, r4h) = multiply128(seed1, seed5);
-    seed5 = seed5.add(r4h);
-    seed1 = seed5.bitxor(r4l);
-
-    seed1.0
+    return komi_hash_finish(bytes, seed1, seed5, len, last_word);
 }
 
 impl KomiHasher {
@@ -436,36 +378,7 @@ impl Hasher for KomiHasher {
 
             remaining = &remaining[16..];
         }
-
-        let mut r2h = seed5;
-        let mut r2l = seed1;
-
-        if remaining.len() > 7 {
-            let b0 = read_word(&remaining[0..8]);
-            r2l = r2l.bitxor(b0);
-            let ml8 = (remaining.len() - 8) << 3;
-            let fb = Wrapping((1u64 << (remaining[remaining.len() - 1] >> 7)) << ml8);
-            let b1 = read_partial_word(&remaining[8..]);
-            r2h = r2h.bitxor(fb | b1)
-        } else if remaining.len() > 0 {
-            let ml8 = remaining.len() << 3;
-            let b0 = read_partial_word(remaining);
-            let fb = Wrapping((1u64 << (remaining[remaining.len() - 1] >> 7)) << ml8);
-            r2l = r2l.bitxor(fb | b0)
-        } else if self.bytes_count > 0 {
-            let fb = Wrapping(1u64 << (last_word.0 >> 63));
-            r2l = r2l.bitxor(fb);
-        }
-
-        let (r3l, r3h) = multiply128(r2l, r2h);
-        seed5 = seed5.add(r3h);
-        seed1 = seed5.bitxor(r3l);
-
-        let (r4l, r4h) = multiply128(seed1, seed5);
-        seed5 = seed5.add(r4h);
-        seed1 = seed5.bitxor(r4l);
-
-        seed1.0
+        return komi_hash_finish(remaining, seed1, seed5, self.bytes_count, last_word);
     }
 
     fn write(&mut self, mut bytes: &[u8]) {
