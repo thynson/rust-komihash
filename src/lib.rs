@@ -407,7 +407,7 @@ mod tests {
     #[test]
     fn test() {
         for (hash0, hash1, seed, content) in test_vector() {
-            assert_eq!(komihash(&content, 0), hash0, "content: {:?}, without seed", content);
+            assert_eq!(komihash(&content, 0), hash0, "content: {:?}, with default seed", content);
             assert_eq!(komihash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
         }
     }
@@ -417,11 +417,11 @@ mod tests {
         for (hash0, hash1, seed, content) in test_vector() {
             let mut hasher = StreamedKomihash::new();
             hasher.write(&content);
-            assert_eq!(hasher.finish(), hash0, "hash content: {:?}, without seed", content);
+            assert_eq!(hasher.finish(), hash0, "streamed hash content: {:?}, with default seed", content);
 
             let mut hasher = StreamedKomihash::new_with_seed(seed);
             hasher.write(&content);
-            assert_eq!(hasher.finish(), hash1, "hash content: {:?}, with seed: {}", content, seed);
+            assert_eq!(hasher.finish(), hash1, "streamed hash content: {:?}, with seed: {}", content, seed);
 
 
             for size in 1..127 {
@@ -432,7 +432,7 @@ mod tests {
                     bytes = &bytes[slice.len()..];
                     hasher.write(slice);
                 }
-                assert_eq!(hasher.finish(), hash0, "incrementally hash content: {:?}, without seed", content);
+                assert_eq!(hasher.finish(), hash0, "streamed hash content: {:?}, with default seed", content);
 
 
                 let mut hasher = StreamedKomihash::new_with_seed(seed);
@@ -443,7 +443,7 @@ mod tests {
                     bytes = &bytes[slice.len()..];
                     hasher.write(slice);
                 }
-                assert_eq!(hasher.finish(), hash1, "incrementally hash content: {:?}, with seed: {}", content, seed);
+                assert_eq!(hasher.finish(), hash1, "streamed hash content: {:?}, with seed: {}", content, seed);
             }
         }
     }

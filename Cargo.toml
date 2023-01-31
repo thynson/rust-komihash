@@ -1,9 +1,9 @@
 [package]
-name = "komi-hash"
-version = "0.1.4"
+name = "komihash"
+version = "0.2.0"
 edition = "2021"
 license = "ISC"
-description = "Komi hash"
+description = "A Rust implemenation of komihash"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
