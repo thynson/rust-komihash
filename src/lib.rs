@@ -37,7 +37,7 @@
 
 use std::hash::Hasher;
 use std::num::Wrapping;
-use std::ops::{Add, BitAnd, BitXor, BitOr};
+use std::ops::{Add, BitAnd, BitXor, BitOr, Shl, Shr};
 
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
 
@@ -63,74 +63,45 @@ pub struct KomiHasher {
     bytes_count: usize,
 }
 
-#[inline]
+#[inline(always)]
 fn multiply128(m1: Wrapping<u64>, m2: Wrapping<u64>) -> (Wrapping<u64>, Wrapping<u64>) {
     let u128: u128 = (m1.0 as u128) * (m2.0 as u128);
     (Wrapping(u128 as u64), Wrapping((u128 >> 64) as u64))
 }
 
-#[inline]
+#[inline(always)]
 fn read_word(buffer: &[u8]) -> Wrapping<u64> {
     let mut tmp_buffer = [0u8; 8];
     tmp_buffer.copy_from_slice(&buffer[0..8]);
     return Wrapping(u64::from_le_bytes(tmp_buffer));
 }
 
-#[inline]
-fn read_half_word(buffer: &[u8]) -> Wrapping<u64> {
-    let mut tmp_buffer = [0u8; 4];
-    tmp_buffer.copy_from_slice(buffer);
-    return Wrapping(u32::from_le_bytes(tmp_buffer) as u64);
-}
-
-#[inline]
-fn read_quarter_word(buffer: &[u8]) -> Wrapping<u64> {
-    let mut tmp_buffer = [0u8; 2];
-    tmp_buffer.copy_from_slice(buffer);
-    return Wrapping(u16::from_le_bytes(tmp_buffer) as u64);
-}
-
-#[inline]
+#[inline(always)]
 fn read_partial_word(buff: &[u8]) -> Wrapping<u64> {
-    match buff.len() {
-        0 => Wrapping(0),
-        1 => Wrapping(buff[0] as u64),
-        2 => read_quarter_word(&buff[0..2]),
-        3 => {
-            read_quarter_word(&buff[0..2]) | (Wrapping(buff[2] as u64) << 16)
-        }
-        4 => {
-            read_half_word(&buff[0..4])
-        }
-        5 => {
-            read_half_word(&buff[0..4]) | (Wrapping(buff[4] as u64) << 32)
-        }
-        6 => {
-            read_half_word(&buff[0..4]) | (read_quarter_word(&buff[4..6])<< 32)
-        }
-        7 => {
-            read_half_word(&buff[0..4]) | (read_quarter_word(&buff[4..6]) << 32) | (Wrapping(buff[6] as u64) << 48)
-        }
-        _ => unreachable!()
-    }
+    let mut tmp_buffer = [0u8; 8];
+    tmp_buffer[0..buff.len()].copy_from_slice(buff);
+    return Wrapping(u64::from_le_bytes(tmp_buffer));
 }
 
 #[inline]
-fn komi_hash_finish(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<u64>, content_len: usize, last_word: Wrapping<u64>) -> u64 {
+fn komi_hash_finish(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<u64>, content_len: usize, mut last_word: Wrapping<u64>) -> u64 {
     let mut r2l = seed1;
     let mut r2h = seed5;
-    if bytes.len() > 7 {
-        let b0 = read_word(&bytes[0..8]);
+    if bytes.len() > 8 {
+        let b0 = read_word(bytes);
         r2l = r2l.bitxor(b0);
         let ml8 = (bytes.len() - 8) << 3;
-        let mask = Wrapping((1u64 << ml8) - 1);
-        let fb = Wrapping((1u64 << (bytes[bytes.len() - 1] >> 7)) << ml8);
-        let b1 = read_partial_word(&bytes[8..]).bitand(mask);
+        let b1 = read_partial_word(&bytes[8..]);
+        let fb = Wrapping((1u64 << (b1.0 >> (ml8 - 1))) << ml8);
         r2h = r2h.bitxor(fb | b1);
+    } else if bytes.len() == 8 {
+        last_word = read_word(bytes);
+        r2l = r2l.bitxor(last_word);
+        let fb = Wrapping(1u64 << (last_word.0 >> 63));
+        r2h = r2h.bitxor(fb);
     } else if bytes.len() > 0 {
         let ml8 = bytes.len() << 3;
-        let mask = Wrapping((1u64 << ml8) - 1);
-        let b0 = read_partial_word(bytes).bitand(mask);
+        let b0 = read_partial_word(bytes);
         let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
         r2l = r2l.bitxor(fb | b0);
     } else if content_len > 0 {
@@ -174,8 +145,8 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
     }
 
     if bytes.len() < 32 {
-        let tmp1 = read_word(&bytes[..8]);
-        let tmp2 = read_word(&bytes[8..16]);
+        let tmp1 = read_word(bytes);
+        let tmp2 = read_word(&bytes[8..]);
         last_word = tmp2;
         let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
         seed5 = seed5.add(r1h);
@@ -186,14 +157,14 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
 
     if bytes.len() >= 64 {
         loop {
-            let b0 = read_word(&bytes[..8]);
-            let b1 = read_word(&bytes[8..16]);
-            let b2 = read_word(&bytes[16..24]);
-            let b3 = read_word(&bytes[24..32]);
-            let b4 = read_word(&bytes[32..40]);
-            let b5 = read_word(&bytes[40..48]);
-            let b6 = read_word(&bytes[48..56]);
-            let b7 = read_word(&bytes[56..64]);
+            let b0 = read_word(bytes);
+            let b1 = read_word(&bytes[8..]);
+            let b2 = read_word(&bytes[16..]);
+            let b3 = read_word(&bytes[24..]);
+            let b4 = read_word(&bytes[32..]);
+            let b5 = read_word(&bytes[40..]);
+            let b6 = read_word(&bytes[48..]);
+            let b7 = read_word(&bytes[56..]);
             last_word = b7;
 
             let (r1l, r1h) = multiply128(b0.bitxor(seed1), b1.bitxor(seed5));
@@ -204,12 +175,12 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
             bytes = &bytes[64..];
 
             seed5 = seed5.add(r1h);
-            seed6 = seed6.add(r2h);
-            seed7 = seed7.add(r3h);
-            seed8 = seed8.add(r4h);
             seed2 = seed5.bitxor(r2l);
+            seed6 = seed6.add(r2h);
             seed3 = seed6.bitxor(r3l);
+            seed7 = seed7.add(r3h);
             seed4 = seed7.bitxor(r4l);
+            seed8 = seed8.add(r4h);
             seed1 = seed8.bitxor(r1l);
             if bytes.len() < 64 {
                 break;
@@ -220,14 +191,14 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
         seed1 = seed1.bitxor(seed2).bitxor(seed3).bitxor(seed4);
     }
     if bytes.len() > 31 {
-        let tmp1 = read_word(&bytes[..8]);
-        let tmp2 = read_word(&bytes[8..16]);
+        let tmp1 = read_word(bytes);
+        let tmp2 = read_word(&bytes[8..]);
+        let tmp3 = read_word(&bytes[16..]);
+        let tmp4 = read_word(&bytes[24..]);
         let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
         seed5 = seed5.add(r1h);
         seed1 = seed5.bitxor(r1l);
 
-        let tmp3 = read_word(&bytes[16..24]);
-        let tmp4 = read_word(&bytes[24..32]);
         last_word = tmp4;
 
         let (r2l, r2h) = multiply128(tmp3.bitxor(seed1), tmp4.bitxor(seed5));
@@ -238,8 +209,8 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
     }
 
     if bytes.len() > 15 {
-        let tmp1 = read_word(&bytes[..8]);
-        let tmp2 = read_word(&bytes[8..16]);
+        let tmp1 = read_word(bytes);
+        let tmp2 = read_word(&bytes[8..]);
         last_word = tmp2;
         let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
         seed5 = seed5.add(r1h);
@@ -291,19 +262,21 @@ impl KomiHasher {
         }
     }
 
+    #[inline]
     fn process_buffer(&mut self) {
-        let b0 = read_word(&self.buffer[0..8]);
-        let b1 = read_word(&self.buffer[8..16]);
-        let b2 = read_word(&self.buffer[16..24]);
-        let b3 = read_word(&self.buffer[24..32]);
-        let b4 = read_word(&self.buffer[32..40]);
-        let b5 = read_word(&self.buffer[40..48]);
-        let b6 = read_word(&self.buffer[48..56]);
-        let b7 = read_word(&self.buffer[56..64]);
+        let b0 = read_word(&self.buffer[0..]);
+        let b1 = read_word(&self.buffer[8..]);
+        let b2 = read_word(&self.buffer[16..]);
+        let b3 = read_word(&self.buffer[24..]);
+        let b4 = read_word(&self.buffer[32..]);
+        let b5 = read_word(&self.buffer[40..]);
+        let b6 = read_word(&self.buffer[48..]);
+        let b7 = read_word(&self.buffer[56..]);
         self.last_word = b7;
         self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
     }
 
+    #[inline]
     fn process_state(
         &mut self,
         b0: Wrapping<u64>,
@@ -331,6 +304,12 @@ impl KomiHasher {
     }
 }
 
+impl Default for KomiHasher {
+    fn default() -> Self {
+        KomiHasher::new()
+    }
+}
+
 impl Hasher for KomiHasher {
     fn finish(&self) -> u64 {
         let mut seed5 = self.seed5;
@@ -343,10 +322,10 @@ impl Hasher for KomiHasher {
         let mut last_word = self.last_word;
 
         if remaining.len() > 31 {
-            let b0 = read_word(&remaining[0..8]);
-            let b1 = read_word(&remaining[8..16]);
-            let b2 = read_word(&remaining[16..24]);
-            let b3 = read_word(&remaining[24..32]);
+            let b0 = read_word(&remaining[0..]);
+            let b1 = read_word(&remaining[8..]);
+            let b2 = read_word(&remaining[16..]);
+            let b3 = read_word(&remaining[24..]);
             last_word = b3;
 
             let tmp1 = seed1.bitxor(b0);
@@ -366,8 +345,8 @@ impl Hasher for KomiHasher {
         }
 
         if remaining.len() > 15 {
-            let b0 = read_word(&remaining[0..8]);
-            let b1 = read_word(&remaining[8..16]);
+            let b0 = read_word(remaining);
+            let b1 = read_word(&remaining[8..]);
             last_word = b1;
 
             let tmp1 = seed1.bitxor(b0);
@@ -394,14 +373,14 @@ impl Hasher for KomiHasher {
             }
 
             while bytes.len() >= 64 {
-                let b0 = read_word(&bytes[0..8]);
-                let b1 = read_word(&bytes[8..16]);
-                let b2 = read_word(&bytes[16..24]);
-                let b3 = read_word(&bytes[24..32]);
-                let b4 = read_word(&bytes[32..40]);
-                let b5 = read_word(&bytes[40..48]);
-                let b6 = read_word(&bytes[48..56]);
-                let b7 = read_word(&bytes[56..64]);
+                let b0 = read_word(&bytes[0..]);
+                let b1 = read_word(&bytes[8..]);
+                let b2 = read_word(&bytes[16..]);
+                let b3 = read_word(&bytes[24..]);
+                let b4 = read_word(&bytes[32..]);
+                let b5 = read_word(&bytes[40..]);
+                let b6 = read_word(&bytes[48..]);
+                let b7 = read_word(&bytes[56..]);
                 self.last_word = b7;
                 self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
                 bytes = &bytes[64..];
@@ -468,4 +447,3 @@ mod tests {
         }
     }
 }
-
