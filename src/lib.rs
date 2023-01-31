@@ -392,12 +392,69 @@ impl Hasher for StreamedKomihash {
     }
 }
 
+struct Komirand {
+    s1: Wrapping<u64>,
+    s2: Wrapping<u64>,
+}
+
+impl Komirand {
+
+    ///
+    /// Creates a Komirand instance with the given seeds.
+    ///
+    pub const fn new(s1: u64, s2: u64) -> Self{
+
+        let mut ret = Komirand { s1: Wrapping(s1), s2: Wrapping(s2)};
+
+        ret
+    }
+
+    ///
+    /// Creates a Komirand instance with the a given seed, and warmup the state before returning.
+    ///
+    pub fn init(seed: u64) -> Self {
+        let mut ret = Self::new(seed, seed);
+
+        // warming up
+        ret.next();
+        ret.next();
+        ret.next();
+        ret.next();
+
+        ret
+    }
+
+    ///
+    /// Create a new Komirand instance with two seeds, and warmup the state before returning.
+    ///
+    pub fn init_with_extra_seed(s1: u64, s2: u64) -> Self {
+        let mut ret = Self::new(s1, s2);
+
+        // warming up
+        ret.next();
+        ret.next();
+        ret.next();
+        ret.next();
+
+        ret
+    }
+
+    pub fn next(&mut self) -> u64 {
+        let (r1l, r1h) = multiply128(self.s1, self.s2);
+        self.s1 = r1l;
+        self.s2 += r1h.add(Wrapping(0xaaaaaaaaaaaaaaaau64));
+        self.s1 ^= self.s2;
+        self.s1.0
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use std::cmp::min;
     use std::hash::Hasher;
 
-    use crate::{komihash, StreamedKomihash};
+    use crate::{komihash, Komirand, StreamedKomihash};
 
     mod test_vector;
 
@@ -405,7 +462,7 @@ mod tests {
 
 
     #[test]
-    fn test() {
+    fn hash_test() {
         for (hash0, hash1, seed, content) in test_vector() {
             assert_eq!(komihash(&content, 0), hash0, "content: {:?}, with default seed", content);
             assert_eq!(komihash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
@@ -446,5 +503,38 @@ mod tests {
                 assert_eq!(hasher.finish(), hash1, "streamed hash content: {:?}, with seed: {}", content, seed);
             }
         }
+    }
+
+    #[test]
+    fn rand_test() {
+        let mut rand = Komirand::new(0, 0);
+        assert_eq!(rand.next(), 0xaaaaaaaaaaaaaaaa);
+        assert_eq!(rand.next(), 0xfffffffffffffffe);
+        assert_eq!(rand.next(), 0x4924924924924910);
+        assert_eq!(rand.next(), 0xbaebaebaebaeba00);
+        assert_eq!(rand.next(), 0x400c62cc4727496b);
+        assert_eq!(rand.next(), 0x35a969173e8f925b);
+        assert_eq!(rand.next(), 0xdb47f6bae9a247ad);
+        assert_eq!(rand.next(), 0x98e0f6cece6711fe);
+        assert_eq!(rand.next(), 0x97ffa2397fda534b);
+        assert_eq!(rand.next(), 0x11834262360df918);
+        assert_eq!(rand.next(), 0x34e53df5399f2252);
+        assert_eq!(rand.next(), 0xecaeb74a81d648ed);
+
+        let mut rand = Komirand::new(0x0123456789abcdef, 0x0123456789abcdef);
+
+        assert_eq!(rand.next(), 0x776ad9718078ca64);
+        assert_eq!(rand.next(), 0x737aa5d5221633d0);
+        assert_eq!(rand.next(), 0x685046cca30f6f44);
+        assert_eq!(rand.next(), 0xfb725cb01b30c1ba);
+        assert_eq!(rand.next(), 0xc501cc999ede619f);
+        assert_eq!(rand.next(), 0x8427298e525db507);
+        assert_eq!(rand.next(), 0xd9baf3c54781f75e);
+        assert_eq!(rand.next(), 0x7f5a4e5b97b37c7b);
+        assert_eq!(rand.next(), 0xde8a0afe8e03b8c1);
+        assert_eq!(rand.next(), 0xb6ed3e72b69fc3d6);
+        assert_eq!(rand.next(), 0xa68727902f7628d0);
+        assert_eq!(rand.next(), 0x44162b63af484587);
+
     }
 }
