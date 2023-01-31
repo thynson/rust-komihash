@@ -2,10 +2,10 @@
 komihash (rust)
 ==================
 
-Komihash is a hash function passes all [smhasher] tests with extremely high performance.
+Komihash is a hash function passes all [smhasher] tests with extremely 
+high performance. A PRNG named `komirand` is also provided that passes
+PractRand test. See [the original C implementation] for more details.
 
-While original implementation is written by Aleksey Vaneev (Original C implementation: https://github.com/avaneev/komihash),
-the crate derives from [hash4j's implementation], which provides a streaming interface.
 
 License
 -------
@@ -25,5 +25,4 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 
 [smhasher]: https://github.com/rurban/smhasher
-[hash4j's implementation]: https://github.com/dynatrace-oss/hash4j/blob/main/src/main/java/com/dynatrace/hash4j/hashing/Komihash4_3.java
 
