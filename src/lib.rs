@@ -33,8 +33,6 @@
  * limitations under the License.
  */
 
-
-
 use std::hash::Hasher;
 use std::num::Wrapping;
 use std::ops::{Add, BitAnd, BitXor, BitOr, Shl, Shr};
@@ -42,14 +40,13 @@ use std::ops::{Add, BitAnd, BitXor, BitOr, Shl, Shr};
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
 
 ///
-/// Streaming hash state of komi-hash.
+/// Streaming hash state of komihash.
 ///
-/// Only recommended for use when input size is large enough. To archive best performance,
-/// a buffer of which size is multiple times of 64 shall be provided each time when calling `write`,
-/// otherwise the content in the provide buffer has to be copied into the internal buffer,
-/// resulting in performance degrade.
+/// Use this method when the input size is too large or unknown. For maximum performance,
+/// make sure the buffer size aligned to 64 bytes to avoid contents being copied into the
+/// internal buffer.
 ///
-pub struct KomiHasher {
+pub struct StreamedKomihash {
     seed1: Wrapping<u64>,
     seed2: Wrapping<u64>,
     seed3: Wrapping<u64>,
@@ -84,7 +81,11 @@ fn read_partial_word(buff: &[u8]) -> Wrapping<u64> {
 }
 
 #[inline]
-fn komi_hash_finish(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<u64>, content_len: usize, mut last_word: Wrapping<u64>) -> u64 {
+fn komihash_finish(bytes: &[u8],
+                   mut seed1: Wrapping<u64>,
+                   mut seed5: Wrapping<u64>,
+                   content_len: usize,
+                   mut last_word: Wrapping<u64>) -> u64 {
     let mut r2l = seed1;
     let mut r2h = seed5;
     if bytes.len() > 8 {
@@ -120,11 +121,11 @@ fn komi_hash_finish(bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<
 }
 
 ///
-/// One-shot komi hash function
+/// One-shot komihash function
 ///
 /// Recommended for use unless the input size is too large.
 ///
-pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
+pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
     let mut seed1 = Wrapping(0x243f6a8885a308d3 ^ (seed & 0x5555555555555555));
     let mut seed5 = Wrapping(0x452821e638d01377 ^ (seed & 0xaaaaaaaaaaaaaaaa));
     let len = bytes.len();
@@ -141,7 +142,7 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
     let mut last_word = Wrapping(0);
 
     if bytes.len() < 16 {
-        return komi_hash_finish(bytes, seed1, seed5, bytes.len(), last_word);
+        return komihash_finish(bytes, seed1, seed5, bytes.len(), last_word);
     }
 
     if bytes.len() < 32 {
@@ -152,7 +153,7 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
         seed5 = seed5.add(r1h);
         seed1 = seed5.bitxor(r1l);
         bytes = &bytes[16..];
-        return komi_hash_finish(bytes, seed1, seed5, len, last_word);
+        return komihash_finish(bytes, seed1, seed5, len, last_word);
     }
 
     if bytes.len() >= 64 {
@@ -219,21 +220,21 @@ pub fn komi_hash(mut bytes: &[u8], seed: u64) -> u64 {
         bytes = &bytes[16..];
     }
 
-    return komi_hash_finish(bytes, seed1, seed5, len, last_word);
+    return komihash_finish(bytes, seed1, seed5, len, last_word);
 }
 
-impl KomiHasher {
+impl StreamedKomihash {
     ///
-    /// Create a new komi hash instance with default seed
+    /// Create a streamed komihash instance with default seed
     ///
-    pub fn new() -> KomiHasher {
-        KomiHasher::new_with_seed(0)
+    pub fn new() -> StreamedKomihash {
+        StreamedKomihash::new_with_seed(0)
     }
 
     ///
-    /// Create a new komi hash instance with specified seed
+    /// Create a streamed komihash instance with specified seed
     ///
-    pub fn new_with_seed(seed: u64) -> KomiHasher {
+    pub fn new_with_seed(seed: u64) -> StreamedKomihash {
         let mut seed1 = Wrapping(0x243f6a8885a308d3 ^ (seed & 0x5555555555555555));
         let mut seed5 = Wrapping(0x452821e638d01377 ^ (seed & 0xaaaaaaaaaaaaaaaa));
 
@@ -247,7 +248,7 @@ impl KomiHasher {
         let seed7 = Wrapping(0xc0ac29b7c97c50dd).bitxor(seed5);
         let seed8 = Wrapping(0x3f84d5b5b5470917).bitxor(seed5);
 
-        KomiHasher {
+        StreamedKomihash {
             seed1,
             seed2,
             seed3,
@@ -304,13 +305,13 @@ impl KomiHasher {
     }
 }
 
-impl Default for KomiHasher {
+impl Default for StreamedKomihash {
     fn default() -> Self {
-        KomiHasher::new()
+        StreamedKomihash::new()
     }
 }
 
-impl Hasher for KomiHasher {
+impl Hasher for StreamedKomihash {
     fn finish(&self) -> u64 {
         let mut seed5 = self.seed5;
         let mut seed1 = self.seed1;
@@ -357,7 +358,7 @@ impl Hasher for KomiHasher {
 
             remaining = &remaining[16..];
         }
-        return komi_hash_finish(remaining, seed1, seed5, self.bytes_count, last_word);
+        return komihash_finish(remaining, seed1, seed5, self.bytes_count, last_word);
     }
 
     fn write(&mut self, mut bytes: &[u8]) {
@@ -396,7 +397,7 @@ mod tests {
     use std::cmp::min;
     use std::hash::Hasher;
 
-    use crate::{komi_hash, KomiHasher};
+    use crate::{komihash, StreamedKomihash};
 
     mod test_vector;
 
@@ -406,25 +407,25 @@ mod tests {
     #[test]
     fn test() {
         for (hash0, hash1, seed, content) in test_vector() {
-            assert_eq!(komi_hash(&content, 0), hash0, "content: {:?}, without seed", content);
-            assert_eq!(komi_hash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
+            assert_eq!(komihash(&content, 0), hash0, "content: {:?}, without seed", content);
+            assert_eq!(komihash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
         }
     }
 
     #[test]
-    fn test_hasher() {
+    fn streamed_hash_test() {
         for (hash0, hash1, seed, content) in test_vector() {
-            let mut hasher = KomiHasher::new();
+            let mut hasher = StreamedKomihash::new();
             hasher.write(&content);
             assert_eq!(hasher.finish(), hash0, "hash content: {:?}, without seed", content);
 
-            let mut hasher = KomiHasher::new_with_seed(seed);
+            let mut hasher = StreamedKomihash::new_with_seed(seed);
             hasher.write(&content);
             assert_eq!(hasher.finish(), hash1, "hash content: {:?}, with seed: {}", content, seed);
 
 
             for size in 1..127 {
-                let mut hasher = KomiHasher::new();
+                let mut hasher = StreamedKomihash::new();
                 let mut bytes: &[u8] = &content;
                 while bytes.len() > 0 {
                     let slice = &bytes[..min(bytes.len(), size)];
@@ -434,7 +435,7 @@ mod tests {
                 assert_eq!(hasher.finish(), hash0, "incrementally hash content: {:?}, without seed", content);
 
 
-                let mut hasher = KomiHasher::new_with_seed(seed);
+                let mut hasher = StreamedKomihash::new_with_seed(seed);
                 let mut bytes: &[u8] = &content;
 
                 while bytes.len() > 0 {

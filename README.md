@@ -1,8 +1,8 @@
 
-komi-hash (rust)
+komihash (rust)
 ==================
 
-Komi hash is a hash function passes all [smhasher] tests with extremely high performance.
+Komihash is a hash function passes all [smhasher] tests with extremely high performance.
 
 While original implementation is written by Aleksey Vaneev (Original C implementation: https://github.com/avaneev/komihash),
 the crate derives from [hash4j's implementation], which provides a streaming interface.
