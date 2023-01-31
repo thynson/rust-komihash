@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/komi-hash.iml" filepath="$PROJECT_DIR$/.idea/komi-hash.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/komihash.iml" filepath="$PROJECT_DIR$/.idea/komihash.iml" />
     </modules>
   </component>
 </project>
