@@ -35,7 +35,7 @@
 
 use std::hash::Hasher;
 use std::num::Wrapping;
-use std::ops::{Add, BitAnd, BitXor, BitOr, Shl, Shr};
+use std::ops::{Add, BitXor};
 
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
 
