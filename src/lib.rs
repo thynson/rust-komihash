@@ -392,21 +392,17 @@ impl Hasher for StreamedKomihash {
     }
 }
 
-struct Komirand {
+pub struct Komirand {
     s1: Wrapping<u64>,
     s2: Wrapping<u64>,
 }
 
 impl Komirand {
-
     ///
     /// Creates a Komirand instance with the given seeds.
     ///
-    pub const fn new(s1: u64, s2: u64) -> Self{
-
-        let mut ret = Komirand { s1: Wrapping(s1), s2: Wrapping(s2)};
-
-        ret
+    pub const fn new(s1: u64, s2: u64) -> Self {
+        Self { s1: Wrapping(s1), s2: Wrapping(s2) }
     }
 
     ///
@@ -446,6 +442,31 @@ impl Komirand {
         self.s1 ^= self.s2;
         self.s1.0
     }
+
+    pub fn fill_bytes(&mut self, mut buffer: &mut [u8]) {
+        while buffer.len() >= 8 {
+            buffer[..8].copy_from_slice(&self.next().to_le_bytes());
+            buffer = &mut buffer[8..];
+        }
+
+        let mut last = self.next();
+
+        if buffer.len() >= 4 {
+            buffer[..4].copy_from_slice(&(last as u32).to_le_bytes()[..4]);
+            last >>= 32;
+            buffer = &mut buffer[4..];
+        }
+
+        if buffer.len() >= 2 {
+            buffer[..2].copy_from_slice(&(last as u16).to_le_bytes()[..2]);
+            last >>= 16;
+            buffer = &mut buffer[2..];
+        }
+
+        if buffer.len() > 0 {
+            buffer[0] = last as u8;
+        }
+    }
 }
 
 
@@ -454,11 +475,12 @@ mod tests {
     use std::cmp::min;
     use std::hash::Hasher;
 
-    use crate::{komihash, Komirand, StreamedKomihash};
+    use crate::{komihash, Komirand, read_word, StreamedKomihash};
 
     mod test_vector;
 
     use test_vector::test_vector;
+    use crate::tests::test_vector::komi_rand_test_vector;
 
 
     #[test]
@@ -507,34 +529,40 @@ mod tests {
 
     #[test]
     fn rand_test() {
-        let mut rand = Komirand::new(0, 0);
-        assert_eq!(rand.next(), 0xaaaaaaaaaaaaaaaa);
-        assert_eq!(rand.next(), 0xfffffffffffffffe);
-        assert_eq!(rand.next(), 0x4924924924924910);
-        assert_eq!(rand.next(), 0xbaebaebaebaeba00);
-        assert_eq!(rand.next(), 0x400c62cc4727496b);
-        assert_eq!(rand.next(), 0x35a969173e8f925b);
-        assert_eq!(rand.next(), 0xdb47f6bae9a247ad);
-        assert_eq!(rand.next(), 0x98e0f6cece6711fe);
-        assert_eq!(rand.next(), 0x97ffa2397fda534b);
-        assert_eq!(rand.next(), 0x11834262360df918);
-        assert_eq!(rand.next(), 0x34e53df5399f2252);
-        assert_eq!(rand.next(), 0xecaeb74a81d648ed);
+        for (seed0, seed1, test_vector) in komi_rand_test_vector() {
+            let mut rand = Komirand::new(seed0, seed1);
+            for value in test_vector {
+                assert_eq!(rand.next(), value);
+            }
+        }
+    }
 
-        let mut rand = Komirand::new(0x0123456789abcdef, 0x0123456789abcdef);
+    #[test]
+    fn test_fill_bytes() {
+        for (seed0, seed1, test_vector) in komi_rand_test_vector() {
 
-        assert_eq!(rand.next(), 0x776ad9718078ca64);
-        assert_eq!(rand.next(), 0x737aa5d5221633d0);
-        assert_eq!(rand.next(), 0x685046cca30f6f44);
-        assert_eq!(rand.next(), 0xfb725cb01b30c1ba);
-        assert_eq!(rand.next(), 0xc501cc999ede619f);
-        assert_eq!(rand.next(), 0x8427298e525db507);
-        assert_eq!(rand.next(), 0xd9baf3c54781f75e);
-        assert_eq!(rand.next(), 0x7f5a4e5b97b37c7b);
-        assert_eq!(rand.next(), 0xde8a0afe8e03b8c1);
-        assert_eq!(rand.next(), 0xb6ed3e72b69fc3d6);
-        assert_eq!(rand.next(), 0xa68727902f7628d0);
-        assert_eq!(rand.next(), 0x44162b63af484587);
-
+            for buff_size in 1..96 {
+                let mut rand = Komirand::new(seed0, seed1);
+                let mut buff = Vec::<u8>::with_capacity(buff_size);
+                buff.resize(buff_size, 0);
+                rand.fill_bytes(&mut buff);
+                let mut idx = 0;
+                for chunk in buff.chunks(8) {
+                    let mut tmp: [u8; 8] = [0; 8];
+                    tmp[0..chunk.len()].copy_from_slice(chunk);
+                    let value = read_word(&tmp).0;
+                    assert_eq!(value,
+                               test_vector[idx] & (0xffffffffffffffff >> (64 - chunk.len() * 8)),
+                               "buff_size: {}, chunk.len(): {}, idx: {}, test_vector[idx]={}, tmp={:?}",
+                               buff_size,
+                               chunk.len(),
+                               idx,
+                               test_vector[idx],
+                        tmp
+                    );
+                    idx += 1;
+                }
+            }
+        }
     }
 }
