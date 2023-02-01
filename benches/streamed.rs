@@ -1,26 +1,20 @@
 #![feature(test)]
 
-#[macro_use]
-#[cfg(test)]
-extern crate lazy_static;
-
 use std::hash::Hasher;
 use std::ops::DerefMut;
 use std::sync::Mutex;
 
 extern crate test;
 use test::Bencher;
-use pcg::Pcg;
-use rand_core::RngCore;
-use komihash::StreamedKomihash;
+use std::time::SystemTime;
+use komihash::{Komirand, StreamedKomihash};
 
-lazy_static! {
-    static ref RNG: Mutex<Pcg> = Mutex::new(Pcg::default());
-}
 
 fn bench_template<const N: usize, const SIZE: usize>(b: &mut Bencher) {
     let mut content = [0u8; SIZE];
-    RNG.lock().unwrap().deref_mut().fill_bytes(&mut content);
+    let unix_timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
+    let mut rand = Komirand::init(unix_timestamp);
+    rand.fill_bytes(&mut content);
     let mut n = 0;
     b.iter(move || {
         let mut hasher = StreamedKomihash::new_with_seed(n);
