@@ -2,7 +2,7 @@
 name = "komihash"
 version = "0.2.0"
 edition = "2021"
-license = "ISC"
+license = "MIT"
 description = "A Rust implemenation of komihash"
 repository = "https://github.com/thynson/rust-komihash.git"
 
