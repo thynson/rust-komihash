@@ -12,4 +12,5 @@ License
 MIT
 
 [smhasher]: https://github.com/rurban/smhasher
+[the original C implementation]: https://github.com/avaneev/komihash
 
