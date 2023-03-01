@@ -1,8 +1,6 @@
 #![feature(test)]
 
 use std::hash::Hasher;
-use std::ops::DerefMut;
-use std::sync::Mutex;
 
 extern crate test;
 use test::Bencher;
@@ -18,12 +16,10 @@ fn bench_template<const N: usize, const SIZE: usize>(b: &mut Bencher) {
     let mut n = 0;
     b.iter(move || {
         let mut hasher = StreamedKomihash::new_with_seed(n);
-        n += 1;
         for _ in 0..N {
             hasher.write(&content);
         }
-        hasher.finish();
-        n += 1;
+        n ^= hasher.finish();
     });
 }
 
