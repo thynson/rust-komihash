@@ -106,31 +106,28 @@ fn read_partial_word(mut buff: &[u8]) -> Wrapping<u64> {
 }
 
 #[inline]
-fn komihash_finish(bytes: &[u8],
+fn komihash_finish(mut bytes: &[u8],
                    mut seed1: Wrapping<u64>,
                    mut seed5: Wrapping<u64>,
-                   content_len: usize,
                    mut last_word: Wrapping<u64>) -> u64 {
     let mut r2l = seed1;
     let mut r2h = seed5;
-    if komihash_unlikely(bytes.len() > 8) {
+
+    if komihash_likely(bytes.len() >= 8) {
         let b0 = read_word(bytes);
-        r2l = r2l.bitxor(b0);
-        let ml8 = (bytes.len() - 8) << 3;
-        let b1 = read_partial_word(&bytes[8..]);
-        let fb = Wrapping((1u64 << (b1.0 >> (ml8 - 1))) << ml8);
-        r2h = r2h.bitxor(fb | b1);
-    } else if komihash_unlikely(bytes.len() == 8) {
-        last_word = read_word(bytes);
-        r2l = r2l.bitxor(last_word);
-        let fb = Wrapping(1u64 << (last_word.0 >> 63));
-        r2h = r2h.bitxor(fb);
-    } else if komihash_likely(bytes.len() > 0) {
+        last_word = b0;
+        let tmp = r2l.bitxor(b0);
+        r2l = r2h;
+        r2h = tmp;
+        bytes = &bytes[8..];
+    }
+
+    if komihash_likely(bytes.len() > 0) {
         let ml8 = bytes.len() << 3;
         let b0 = read_partial_word(bytes);
         let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
         r2l = r2l.bitxor(fb | b0);
-    } else if content_len > 0 {
+    } else {
         let fb = Wrapping(1u64 << (last_word.0 >> 63));
         r2l = r2l.bitxor(fb);
     }
@@ -153,21 +150,26 @@ fn komihash_finish(bytes: &[u8],
 pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
     let mut seed1 = Wrapping(0x243f6a8885a308d3 ^ (seed & 0x5555555555555555));
     let mut seed5 = Wrapping(0x452821e638d01377 ^ (seed & 0xaaaaaaaaaaaaaaaa));
-    let len = bytes.len();
 
     let (l, h) = multiply128(seed1, seed5);
     seed5 = seed5.add(h);
     seed1 = seed5.bitxor(l);
-    let mut seed2 = Wrapping(0x13198a2e03707344).bitxor(seed1);
-    let mut seed3 = Wrapping(0xa4093822299f31d0).bitxor(seed1);
-    let mut seed4 = Wrapping(0x082efa98ec4e6c89).bitxor(seed1);
-    let mut seed6 = Wrapping(0xbe5466cf34e90c6c).bitxor(seed5);
-    let mut seed7 = Wrapping(0xc0ac29b7c97c50dd).bitxor(seed5);
-    let mut seed8 = Wrapping(0x3f84d5b5b5470917).bitxor(seed5);
+
+    if komihash_unlikely(bytes.len() == 0) {
+        let (r3l, r3h) = multiply128(seed1, seed5);
+        seed5 = seed5.add(r3h);
+        seed1 = seed5.bitxor(r3l);
+
+        let (r4l, r4h) = multiply128(seed1, seed5);
+        seed5 = seed5.add(r4h);
+        seed1 = seed5.bitxor(r4l);
+        return seed1.0;
+    }
+
     let mut last_word = Wrapping(0);
 
     if komihash_likely(bytes.len() < 16) {
-        return komihash_finish(bytes, seed1, seed5, bytes.len(), last_word);
+        return komihash_finish(bytes, seed1, seed5, last_word);
     }
 
     if komihash_likely(bytes.len() < 32) {
@@ -178,10 +180,16 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         seed5 = seed5.add(r1h);
         seed1 = seed5.bitxor(r1l);
         bytes = &bytes[16..];
-        return komihash_finish(bytes, seed1, seed5, len, last_word);
+        return komihash_finish(bytes, seed1, seed5, last_word);
     }
 
     if bytes.len() >= 64 {
+        let mut seed2 = Wrapping(0x13198a2e03707344).bitxor(seed1);
+        let mut seed3 = Wrapping(0xa4093822299f31d0).bitxor(seed1);
+        let mut seed4 = Wrapping(0x082efa98ec4e6c89).bitxor(seed1);
+        let mut seed6 = Wrapping(0xbe5466cf34e90c6c).bitxor(seed5);
+        let mut seed7 = Wrapping(0xc0ac29b7c97c50dd).bitxor(seed5);
+        let mut seed8 = Wrapping(0x3f84d5b5b5470917).bitxor(seed5);
         loop {
             let b0 = read_word(bytes);
             let b1 = read_word(&bytes[8..]);
@@ -245,7 +253,7 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         bytes = &bytes[16..];
     }
 
-    return komihash_finish(bytes, seed1, seed5, len, last_word);
+    return komihash_finish(bytes, seed1, seed5, last_word);
 }
 
 impl StreamedKomihash {
@@ -340,6 +348,17 @@ impl Hasher for StreamedKomihash {
     fn finish(&self) -> u64 {
         let mut seed5 = self.seed5;
         let mut seed1 = self.seed1;
+        if komihash_unlikely(self.bytes_count == 0) {
+            let (r3l, r3h) = multiply128(seed1, seed5);
+            seed5 = seed5.add(r3h);
+            seed1 = seed5.bitxor(r3l);
+
+            let (r4l, r4h) = multiply128(seed1, seed5);
+            seed5 = seed5.add(r4h);
+            seed1 = seed5.bitxor(r4l);
+            return seed1.0;
+        }
+
         if self.bytes_count >= 64 {
             seed5 = seed5.bitxor(self.seed6).bitxor(self.seed7).bitxor(self.seed8);
             seed1 = seed1.bitxor(self.seed2).bitxor(self.seed3).bitxor(self.seed4);
@@ -383,7 +402,7 @@ impl Hasher for StreamedKomihash {
 
             remaining = &remaining[16..];
         }
-        return komihash_finish(remaining, seed1, seed5, self.bytes_count, last_word);
+        return komihash_finish(remaining, seed1, seed5, last_word);
     }
 
     fn write(&mut self, mut bytes: &[u8]) {
