@@ -64,7 +64,7 @@ pub struct StreamedKomihash {
 }
 
 #[inline]
-fn as_array<const N: usize >(slice: &[u8]) -> &[u8; N] {
+fn as_array<const N: usize>(slice: &[u8]) -> &[u8; N] {
     debug_assert!(slice.len() >= N);
     unsafe { &*(slice.as_ptr() as *const [_; N]) }
 }
@@ -336,16 +336,8 @@ impl StreamedKomihash {
         self.seed4 = self.seed7.bitxor(r4l);
         self.seed1 = self.seed8.bitxor(r1l);
     }
-}
 
-impl Default for StreamedKomihash {
-    fn default() -> Self {
-        StreamedKomihash::new()
-    }
-}
-
-impl Hasher for StreamedKomihash {
-    fn finish(&self) -> u64 {
+    pub fn finish(&self) -> u64 {
         let mut seed5 = self.seed5;
         let mut seed1 = self.seed1;
         if komihash_unlikely(self.bytes_count == 0) {
@@ -405,7 +397,7 @@ impl Hasher for StreamedKomihash {
         return komihash_finish(remaining, seed1, seed5, last_word);
     }
 
-    fn write(&mut self, mut bytes: &[u8]) {
+    pub fn write(&mut self, mut bytes: &[u8]) {
         let mut offset = self.bytes_count & 0x3F;
         self.bytes_count += bytes.len();
         let x = 64 - offset;
@@ -433,6 +425,43 @@ impl Hasher for StreamedKomihash {
         }
 
         self.buffer[offset..offset + bytes.len()].copy_from_slice(bytes);
+    }
+}
+
+impl Default for StreamedKomihash {
+    fn default() -> Self {
+        StreamedKomihash::new()
+    }
+}
+
+pub struct KomiHasher {
+    seed: u64,
+}
+
+impl KomiHasher {
+    pub fn new(seed: u64) -> Self {
+        Self { seed }
+    }
+}
+
+impl Default for KomiHasher {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
+impl Hasher for KomiHasher {
+    fn finish(&self) -> u64 {
+        self.seed
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        // As the Hasher trait explicitly states that different call to write() should not be
+        // treated as if the bytes were concatenated, this is a valid implementation.
+        // Also the author of komihash recommended to implement discrete incremental hashing
+        // by using the previous hash value as the seed for the next call
+        // See: https://github.com/avaneev/komihash#discrete-incremental-hashing
+        self.seed = komihash(bytes, self.seed);
     }
 }
 
@@ -513,13 +542,12 @@ impl Komirand {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::cmp::min;
     use std::hash::Hasher;
 
-    use crate::{komihash, Komirand, read_word, StreamedKomihash};
+    use crate::{komihash, KomiHasher, Komirand, read_word, StreamedKomihash};
 
     mod test_vector;
 
@@ -530,12 +558,21 @@ mod tests {
     #[test]
     fn hash_test() {
         for (hash0, hash1, seed, content) in test_vector() {
-            if hash0 != 0xbb0f7d611b381083u64 {
-                continue
-            }
             assert_eq!(komihash(&content, 0), hash0, "content: {:?}, with default seed", content);
             assert_eq!(komihash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
         }
+    }
+
+    #[test]
+    fn hasher_test() {
+        let mut hasher = KomiHasher::default();
+        hasher.write("hello".as_bytes());
+        hasher.write("world".as_bytes());
+
+        assert_eq!(
+            hasher.finish(),
+            komihash("world".as_bytes(), komihash("hello".as_bytes(), 0)),
+        )
     }
 
     #[test]
@@ -587,7 +624,6 @@ mod tests {
     #[test]
     fn test_fill_bytes() {
         for (seed0, seed1, test_vector) in komi_rand_test_vector() {
-
             for buff_size in 1..96 {
                 let mut rand = Komirand::new(seed0, seed1);
                 let mut buff = Vec::<u8>::with_capacity(buff_size);
@@ -605,7 +641,7 @@ mod tests {
                                chunk.len(),
                                idx,
                                test_vector[idx],
-                        tmp
+                               tmp
                     );
                     idx += 1;
                 }
