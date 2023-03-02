@@ -14,10 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/*
+/**
  * This file includes a rust port of Komihash implementation derives from hash4j
  * at https://github.com/dynatrace-oss/hash4j
-
+ *
  * Copyright 2022 Dynatrace LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,13 +32,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 mod branch_hint;
 
+use crate::branch_hint::{komihash_likely, komihash_unlikely};
 use std::hash::Hasher;
 use std::num::Wrapping;
 use std::ops::{Add, BitXor};
-use crate::branch_hint::{komihash_likely, komihash_unlikely};
 
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
 
@@ -106,10 +105,12 @@ fn read_partial_word(mut buff: &[u8]) -> Wrapping<u64> {
 }
 
 #[inline]
-fn komihash_finish(mut bytes: &[u8],
-                   mut seed1: Wrapping<u64>,
-                   mut seed5: Wrapping<u64>,
-                   mut last_word: Wrapping<u64>) -> u64 {
+fn komihash_finish(
+    mut bytes: &[u8],
+    mut seed1: Wrapping<u64>,
+    mut seed5: Wrapping<u64>,
+    mut last_word: Wrapping<u64>,
+) -> u64 {
     let mut r2l = seed1;
     let mut r2h = seed5;
 
@@ -352,8 +353,14 @@ impl StreamedKomihash {
         }
 
         if self.bytes_count >= 64 {
-            seed5 = seed5.bitxor(self.seed6).bitxor(self.seed7).bitxor(self.seed8);
-            seed1 = seed1.bitxor(self.seed2).bitxor(self.seed3).bitxor(self.seed4);
+            seed5 = seed5
+                .bitxor(self.seed6)
+                .bitxor(self.seed7)
+                .bitxor(self.seed8);
+            seed1 = seed1
+                .bitxor(self.seed2)
+                .bitxor(self.seed3)
+                .bitxor(self.seed4);
         }
         let mut remaining = &self.buffer[0..(self.bytes_count & 0x3F)];
         let mut last_word = self.last_word;
@@ -475,7 +482,10 @@ impl Komirand {
     /// Creates a Komirand instance with the given seeds.
     ///
     pub const fn new(s1: u64, s2: u64) -> Self {
-        Self { s1: Wrapping(s1), s2: Wrapping(s2) }
+        Self {
+            s1: Wrapping(s1),
+            s2: Wrapping(s2),
+        }
     }
 
     ///
@@ -546,20 +556,27 @@ impl Komirand {
 mod tests {
     use std::cmp::min;
     use std::hash::Hasher;
-
-    use crate::{komihash, KomiHasher, Komirand, read_word, StreamedKomihash};
-
     mod test_vector;
 
-    use test_vector::test_vector;
-    use crate::tests::test_vector::komi_rand_test_vector;
-
+    use crate::{komihash, read_word, KomiHasher, Komirand, StreamedKomihash};
+    use test_vector::{komi_rand_test_vector, test_vector};
 
     #[test]
     fn hash_test() {
         for (hash0, hash1, seed, content) in test_vector() {
-            assert_eq!(komihash(&content, 0), hash0, "content: {:?}, with default seed", content);
-            assert_eq!(komihash(&content, seed), hash1, "content: {:?}, with seed {}", content, seed);
+            assert_eq!(
+                komihash(&content, 0),
+                hash0,
+                "content: {:?}, with default seed",
+                content
+            );
+            assert_eq!(
+                komihash(&content, seed),
+                hash1,
+                "content: {:?}, with seed {}",
+                content,
+                seed
+            );
         }
     }
 
@@ -580,12 +597,22 @@ mod tests {
         for (hash0, hash1, seed, content) in test_vector() {
             let mut hasher = StreamedKomihash::new();
             hasher.write(&content);
-            assert_eq!(hasher.finish(), hash0, "streamed hash content: {:?}, with default seed", content);
+            assert_eq!(
+                hasher.finish(),
+                hash0,
+                "streamed hash content: {:?}, with default seed",
+                content
+            );
 
             let mut hasher = StreamedKomihash::new_with_seed(seed);
             hasher.write(&content);
-            assert_eq!(hasher.finish(), hash1, "streamed hash content: {:?}, with seed: {}", content, seed);
-
+            assert_eq!(
+                hasher.finish(),
+                hash1,
+                "streamed hash content: {:?}, with seed: {}",
+                content,
+                seed
+            );
 
             for size in 1..127 {
                 let mut hasher = StreamedKomihash::new();
@@ -595,8 +622,12 @@ mod tests {
                     bytes = &bytes[slice.len()..];
                     hasher.write(slice);
                 }
-                assert_eq!(hasher.finish(), hash0, "streamed hash content: {:?}, with default seed", content);
-
+                assert_eq!(
+                    hasher.finish(),
+                    hash0,
+                    "streamed hash content: {:?}, with default seed",
+                    content
+                );
 
                 let mut hasher = StreamedKomihash::new_with_seed(seed);
                 let mut bytes: &[u8] = &content;
@@ -606,7 +637,13 @@ mod tests {
                     bytes = &bytes[slice.len()..];
                     hasher.write(slice);
                 }
-                assert_eq!(hasher.finish(), hash1, "streamed hash content: {:?}, with seed: {}", content, seed);
+                assert_eq!(
+                    hasher.finish(),
+                    hash1,
+                    "streamed hash content: {:?}, with seed: {}",
+                    content,
+                    seed
+                );
             }
         }
     }
@@ -634,14 +671,15 @@ mod tests {
                     let mut tmp: [u8; 8] = [0; 8];
                     tmp[0..chunk.len()].copy_from_slice(chunk);
                     let value = read_word(&tmp).0;
-                    assert_eq!(value,
-                               test_vector[idx] & (0xffffffffffffffff >> (64 - chunk.len() * 8)),
-                               "buff_size: {}, chunk.len(): {}, idx: {}, test_vector[idx]={}, tmp={:?}",
-                               buff_size,
-                               chunk.len(),
-                               idx,
-                               test_vector[idx],
-                               tmp
+                    assert_eq!(
+                        value,
+                        test_vector[idx] & (0xffffffffffffffff >> (64 - chunk.len() * 8)),
+                        "buff_size: {}, chunk.len(): {}, idx: {}, test_vector[idx]={}, tmp={:?}",
+                        buff_size,
+                        chunk.len(),
+                        idx,
+                        test_vector[idx],
+                        tmp
                     );
                     idx += 1;
                 }

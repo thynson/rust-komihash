@@ -6,9 +6,7 @@
 
 #[inline(always)]
 #[cold]
-fn komihash_cold_path() {
-
-}
+fn komihash_cold_path() {}
 
 #[inline(always)]
 pub fn komihash_likely(b: bool) -> bool {

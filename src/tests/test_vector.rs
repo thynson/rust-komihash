@@ -1,39 +1,14 @@
 #[cfg(test)]
+#[rustfmt::skip]
 pub fn komi_rand_test_vector() -> Vec<(u64, u64, [u64; 12])> {
-
     vec![
-        (0, 0, [
-            0xaaaaaaaaaaaaaaaa,
-            0xfffffffffffffffe,
-            0x4924924924924910,
-            0xbaebaebaebaeba00,
-            0x400c62cc4727496b,
-            0x35a969173e8f925b,
-            0xdb47f6bae9a247ad,
-            0x98e0f6cece6711fe,
-            0x97ffa2397fda534b,
-            0x11834262360df918,
-            0x34e53df5399f2252,
-            0xecaeb74a81d648ed
-        ]),
-        (0x0123456789abcdef, 0x0123456789abcdef,[
-            0x776ad9718078ca64,
-            0x737aa5d5221633d0,
-            0x685046cca30f6f44,
-            0xfb725cb01b30c1ba,
-            0xc501cc999ede619f,
-            0x8427298e525db507,
-            0xd9baf3c54781f75e,
-            0x7f5a4e5b97b37c7b,
-            0xde8a0afe8e03b8c1,
-            0xb6ed3e72b69fc3d6,
-            0xa68727902f7628d0,
-            0x44162b63af484587
-        ]),
+        (0, 0, [ 0xaaaaaaaaaaaaaaaa, 0xfffffffffffffffe, 0x4924924924924910, 0xbaebaebaebaeba00, 0x400c62cc4727496b, 0x35a969173e8f925b, 0xdb47f6bae9a247ad, 0x98e0f6cece6711fe, 0x97ffa2397fda534b, 0x11834262360df918, 0x34e53df5399f2252, 0xecaeb74a81d648ed ]),
+        (0x0123456789abcdef, 0x0123456789abcdef,[ 0x776ad9718078ca64, 0x737aa5d5221633d0, 0x685046cca30f6f44, 0xfb725cb01b30c1ba, 0xc501cc999ede619f, 0x8427298e525db507, 0xd9baf3c54781f75e, 0x7f5a4e5b97b37c7b, 0xde8a0afe8e03b8c1, 0xb6ed3e72b69fc3d6, 0xa68727902f7628d0, 0x44162b63af484587 ]),
     ]
 }
 
 #[cfg(test)]
+#[rustfmt::skip]
 pub fn test_vector() -> Vec<(u64, u64, u64, Vec<u8>)> {
     vec![
         (0xb7683ea7430132b4u64, 0xb22efc38246bbc44u64, 0x28e837c5cb41dc3eu64, Vec::from([])),
