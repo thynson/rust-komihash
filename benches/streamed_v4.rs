@@ -5,7 +5,7 @@ use std::hash::Hasher;
 extern crate test;
 use test::Bencher;
 use std::time::SystemTime;
-use komihash::{Komirand, StreamedKomihash};
+use komihash::v4::{Komirand, StreamedKomihash};
 
 
 fn bench_template<const N: usize, const SIZE: usize>(b: &mut Bencher) {
