@@ -418,13 +418,31 @@ impl Hasher for KomiHasher {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::test_vector_v5::komi_rand_test_vector_official;
+    use crate::tests::test_vector_v5::{komihash_test_vector_extended, komihash_test_vector_official};
     use super::*;
     use crate::tests::test_vector_v5::TestSpec;
 
     #[test]
     fn test_with_official_test_vector() {
-        for TestSpec{seed, input, output} in komi_rand_test_vector_official() {
+        for TestSpec{seed, input, output} in komihash_test_vector_official() {
+            assert_eq!(komihash(&input, seed), output, "content: {:?}, with seed {:?}", input, seed);
+            let mut hasher = StreamedKomihash::new_with_seed(seed);
+            hasher.write(&input);
+            assert_eq!(hasher.finish(), output, "content: {:?}, with seed {:?}", input, seed);
+
+            for chunk_size in 1..63 {
+                let mut hasher = StreamedKomihash::new_with_seed(seed);
+                for chunk in input.chunks(chunk_size) {
+                    hasher.write(chunk);
+                }
+                assert_eq!(hasher.finish(), output, "content: {:?}, chunked by: {:?}, with seed {:?}", input, chunk_size, seed);
+            }
+        }
+    }
+
+    #[test]
+    fn test_with_extended_test_vector() {
+        for TestSpec{seed, input, output} in komihash_test_vector_extended() {
             assert_eq!(komihash(&input, seed), output, "content: {:?}, with seed {:?}", input, seed);
             let mut hasher = StreamedKomihash::new_with_seed(seed);
             hasher.write(&input);
