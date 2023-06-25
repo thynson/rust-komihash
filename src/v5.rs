@@ -165,10 +165,10 @@ fn komihash_finish(mut bytes: &[u8],
     if komihash_likely(bytes.len() > 0) {
         let ml8 = bytes.len() << 3;
         let b0 = read_partial_word(bytes);
-        let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
+        let fb = Wrapping(1u64 << ml8);
         r2l = r2l.bitxor(fb | b0);
     } else {
-        let fb = Wrapping(1u64 << (last_word.0 >> 63));
+        let fb = Wrapping(1u64);
         r2l = r2l.bitxor(fb);
     }
 
@@ -407,17 +407,17 @@ mod tests {
     #[test]
     fn test_with_official_test_vector() {
         for TestSpec{seed, input, output} in komi_rand_test_vector_official() {
-            assert_eq!(komihash(&input, 0), output, "content: {:?}, with default seed", input);
+            assert_eq!(komihash(&input, seed), output, "content: {:?}, with seed {:?}", input, seed);
             let mut hasher = StreamedKomihash::new_with_seed(seed);
             hasher.write(&input);
-            assert_eq!(hasher.finish(), output, "content: {:?}, with default seed", input);
+            assert_eq!(hasher.finish(), output, "content: {:?}, with seed {:?}", input, seed);
 
             for chunk_size in 1..63 {
                 let mut hasher = StreamedKomihash::new_with_seed(seed);
                 for chunk in input.chunks(chunk_size) {
                     hasher.write(chunk);
                 }
-                assert_eq!(hasher.finish(), output, "content: {:?}, chunked by: {:?}, with default seed", input, chunk_size);
+                assert_eq!(hasher.finish(), output, "content: {:?}, chunked by: {:?}, with seed {:?}", input, chunk_size, seed);
             }
         }
     }
