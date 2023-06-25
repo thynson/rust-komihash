@@ -4,7 +4,7 @@ extern crate test;
 
 use std::hint::black_box;
 use test::Bencher;
-use komihash::{komihash, Komirand};
+use komihash::v4::{komihash, Komirand};
 use std::time::SystemTime;
 
 fn bench_template<const N: u64, const SIZE: usize>(b: &mut Bencher) {
