@@ -34,7 +34,6 @@
 
 
 use std::hash::Hasher;
-use std::mem::MaybeUninit;
 use std::num::Wrapping;
 use std::ops::{Add, BitXor};
 use crate::utils::{komihash_likely, komihash_unlikely, multiply128, read_partial_word, read_word};
