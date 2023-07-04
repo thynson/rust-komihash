@@ -1,5 +1,3 @@
-use crate::tests::test_vector_v4::test_vector;
-
 pub struct TestSpec {
     pub seed: u64,
     pub input: Vec<u8>,
@@ -286,7 +284,7 @@ const EXTENDED_TEST_VECTOR: [(u64, usize, u64); 256] = [
 
 pub fn komihash_test_vector_official() -> Vec<TestSpec> {
     let mut test_vector = Vec::new();
-    let mut seed = 0u64;
+    let seed = 0u64;
 
     // let mut bulk_buffer = Vec::<u8>::with_capacity(256);
     // for i in 0..256 {
