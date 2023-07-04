@@ -1,7 +1,5 @@
 #![feature(test)]
 
-use std::hash::Hasher;
-
 extern crate test;
 use test::Bencher;
 use std::time::SystemTime;
