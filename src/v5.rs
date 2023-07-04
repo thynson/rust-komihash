@@ -44,7 +44,6 @@ pub struct StreamedKomihash {
     seed7: Wrapping<u64>,
     seed8: Wrapping<u64>,
     buffer: [u8; KOMI_HASH_INTERNAL_BUFF_SIZE],
-    last_word: Wrapping<u64>,
     bytes_count: usize,
 }
 
@@ -74,21 +73,18 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         return seed1.0;
     }
 
-    let mut last_word = Wrapping(0);
-
     if komihash_likely(bytes.len() < 16) {
-        return komihash_finish(bytes, seed1, seed5, last_word);
+        return komihash_finish(bytes, seed1, seed5);
     }
 
     if komihash_likely(bytes.len() < 32) {
         let tmp1 = read_word(bytes);
         let tmp2 = read_word(&bytes[8..]);
-        last_word = tmp2;
         let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
         seed5 = seed5.add(r1h);
         seed1 = seed5.bitxor(r1l);
         bytes = &bytes[16..];
-        return komihash_finish(bytes, seed1, seed5, last_word);
+        return komihash_finish(bytes, seed1, seed5);
     }
 
     if bytes.len() >= 64 {
@@ -107,7 +103,6 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
             let b5 = read_word(&bytes[40..]);
             let b6 = read_word(&bytes[48..]);
             let b7 = read_word(&bytes[56..]);
-            last_word = b7;
 
             let (r1l, r1h) = multiply128(b0.bitxor(seed1), b4.bitxor(seed5));
             let (r2l, r2h) = multiply128(b1.bitxor(seed2), b5.bitxor(seed6));
@@ -141,7 +136,6 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         seed5 = seed5.add(r1h);
         seed1 = seed5.bitxor(r1l);
 
-        last_word = tmp4;
 
         let (r2l, r2h) = multiply128(tmp3.bitxor(seed1), tmp4.bitxor(seed5));
         seed5 = seed5.add(r2h);
@@ -153,7 +147,6 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
     if bytes.len() >= 16 {
         let tmp1 = read_word(bytes);
         let tmp2 = read_word(&bytes[8..]);
-        last_word = tmp2;
         let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
         seed5 = seed5.add(r1h);
         seed1 = seed5.bitxor(r1l);
@@ -161,19 +154,17 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         bytes = &bytes[16..];
     }
 
-    return komihash_finish(bytes, seed1, seed5, last_word);
+    return komihash_finish(bytes, seed1, seed5);
 }
 #[inline]
 fn komihash_finish(mut bytes: &[u8],
                    mut seed1: Wrapping<u64>,
-                   mut seed5: Wrapping<u64>,
-                   mut last_word: Wrapping<u64>) -> u64 {
+                   mut seed5: Wrapping<u64>) -> u64 {
     let mut r2l = seed1;
     let mut r2h = seed5;
 
     if komihash_likely(bytes.len() >= 8) {
         let b0 = read_word(bytes);
-        last_word = b0;
         let tmp = r2l.bitxor(b0);
         r2l = r2h;
         r2h = tmp;
@@ -234,7 +225,6 @@ impl StreamedKomihash {
             seed6,
             seed7,
             seed8,
-            last_word: Wrapping(0),
             buffer: [0; KOMI_HASH_INTERNAL_BUFF_SIZE],
             bytes_count: 0,
         }
@@ -250,7 +240,6 @@ impl StreamedKomihash {
         let b5 = read_word(&self.buffer[40..]);
         let b6 = read_word(&self.buffer[48..]);
         let b7 = read_word(&self.buffer[56..]);
-        self.last_word = b7;
         self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
     }
 
@@ -306,14 +295,12 @@ impl StreamedKomihash {
                 .bitxor(self.seed4);
         }
         let mut remaining = &self.buffer[0..(self.bytes_count & 0x3F)];
-        let mut last_word = self.last_word;
 
         if remaining.len() > 31 {
             let b0 = read_word(&remaining[0..]);
             let b1 = read_word(&remaining[8..]);
             let b2 = read_word(&remaining[16..]);
             let b3 = read_word(&remaining[24..]);
-            last_word = b3;
 
             let tmp1 = seed1.bitxor(b0);
             let tmp2 = seed5.bitxor(b1);
@@ -334,7 +321,6 @@ impl StreamedKomihash {
         if remaining.len() > 15 {
             let b0 = read_word(remaining);
             let b1 = read_word(&remaining[8..]);
-            last_word = b1;
 
             let tmp1 = seed1.bitxor(b0);
             let tmp2 = seed5.bitxor(b1);
@@ -344,7 +330,7 @@ impl StreamedKomihash {
 
             remaining = &remaining[16..];
         }
-        return komihash_finish(remaining, seed1, seed5, last_word);
+        return komihash_finish(remaining, seed1, seed5);
     }
 
     pub fn write(&mut self, mut bytes: &[u8]) {
@@ -368,7 +354,6 @@ impl StreamedKomihash {
                 let b5 = read_word(&bytes[40..]);
                 let b6 = read_word(&bytes[48..]);
                 let b7 = read_word(&bytes[56..]);
-                self.last_word = b7;
                 self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
                 bytes = &bytes[64..];
             }
