@@ -334,7 +334,7 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
     );
 
 
-    /**
+    /*
 
     seed = 0
 
@@ -355,7 +355,8 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
     bulk(112) = 0xd1a425d530652287
     bulk(132) = 0x72623be342c20ab5
     bulk(256) = 0x94c3dbdca59ddf57
-     */
+
+    */
 
     let bulk_table: [(usize, u64); 17] = [
         (3, 0x7a9717e9eea4be8b),
@@ -428,7 +429,7 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
         }
     );
 
-    /**
+    /*
 
     seed = 0x0123456789abcdef
     bulk(3) = 0x84ae4eb65b96617e
@@ -449,7 +450,7 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
     bulk(132) = 0x3e49c2d3727b9cc9
     bulk(256) = 0xb2b3405ee5d65f4c
 
-     */
+    */
 
     let bulk_table: [(usize, u64); 17] = [
         (3, 0x84ae4eb65b96617e),
@@ -483,8 +484,9 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
 
     let seed = 0x0000000000000100u64;
 
-    /**
-       "This is a 32-byte testing string" = 0x5f197b30bcec1e45
+    /*
+
+    "This is a 32-byte testing string" = 0x5f197b30bcec1e45
     "The cat is out of the bag" = 0xa761280322bb7698
     "A 16-byte string" = 0x11c31ccabaa524f1
     "The new string" = 0x3a43b7f58281c229
@@ -506,7 +508,8 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
     bulk(112) = 0x4afb4e08ca77c020
     bulk(132) = 0x410f9c129ad88aea
     bulk(256) = 0x066c7b25f4f569ae
-     */
+
+    */
 
     test_vector.push(
         TestSpec {
