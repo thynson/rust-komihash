@@ -16,16 +16,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use crate::utils::{komihash_likely, komihash_unlikely, multiply128, read_partial_word, read_word};
 use std::hash::Hasher;
 use std::num::Wrapping;
 use std::ops::{Add, BitXor};
-use crate::utils::{komihash_likely, komihash_unlikely, multiply128, read_partial_word, read_word};
 
 // Komirand does not change since v4, so we can just re-export it.
 pub use crate::v4::Komirand;
 
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
-
 
 ///
 /// Streaming hash state of komihash.
@@ -46,8 +45,6 @@ pub struct StreamedKomihash {
     buffer: [u8; KOMI_HASH_INTERNAL_BUFF_SIZE],
     bytes_count: usize,
 }
-
-
 
 ///
 /// One-shot komihash function
@@ -78,12 +75,15 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
     }
 
     if komihash_likely(bytes.len() < 32) {
-        let tmp1 = read_word(bytes);
-        let tmp2 = read_word(&bytes[8..]);
-        let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
-        seed5 = seed5.add(r1h);
-        seed1 = seed5.bitxor(r1l);
-        bytes = &bytes[16..];
+        // SAFETY: bytes.len() >= 16
+        unsafe {
+            let tmp1 = read_word(bytes);
+            let tmp2 = read_word(&bytes[8..]);
+            let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
+            seed5 = seed5.add(r1h);
+            seed1 = seed5.bitxor(r1l);
+            bytes = &bytes[16..];
+        }
         return komihash_finish(bytes, seed1, seed5);
     }
 
@@ -95,30 +95,33 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         let mut seed7 = Wrapping(0xc0ac29b7c97c50dd).bitxor(seed5);
         let mut seed8 = Wrapping(0x3f84d5b5b5470917).bitxor(seed5);
         loop {
-            let b0 = read_word(bytes);
-            let b1 = read_word(&bytes[8..]);
-            let b2 = read_word(&bytes[16..]);
-            let b3 = read_word(&bytes[24..]);
-            let b4 = read_word(&bytes[32..]);
-            let b5 = read_word(&bytes[40..]);
-            let b6 = read_word(&bytes[48..]);
-            let b7 = read_word(&bytes[56..]);
+            // SAFETY: bytes.len() >= 64
+            unsafe {
+                let b0 = read_word(bytes);
+                let b1 = read_word(&bytes[8..]);
+                let b2 = read_word(&bytes[16..]);
+                let b3 = read_word(&bytes[24..]);
+                let b4 = read_word(&bytes[32..]);
+                let b5 = read_word(&bytes[40..]);
+                let b6 = read_word(&bytes[48..]);
+                let b7 = read_word(&bytes[56..]);
 
-            let (r1l, r1h) = multiply128(b0.bitxor(seed1), b4.bitxor(seed5));
-            let (r2l, r2h) = multiply128(b1.bitxor(seed2), b5.bitxor(seed6));
-            let (r3l, r3h) = multiply128(b2.bitxor(seed3), b6.bitxor(seed7));
-            let (r4l, r4h) = multiply128(b3.bitxor(seed4), b7.bitxor(seed8));
+                let (r1l, r1h) = multiply128(b0.bitxor(seed1), b4.bitxor(seed5));
+                let (r2l, r2h) = multiply128(b1.bitxor(seed2), b5.bitxor(seed6));
+                let (r3l, r3h) = multiply128(b2.bitxor(seed3), b6.bitxor(seed7));
+                let (r4l, r4h) = multiply128(b3.bitxor(seed4), b7.bitxor(seed8));
+
+                seed5 = seed5.add(r1h);
+                seed2 = seed5.bitxor(r2l);
+                seed6 = seed6.add(r2h);
+                seed3 = seed6.bitxor(r3l);
+                seed7 = seed7.add(r3h);
+                seed4 = seed7.bitxor(r4l);
+                seed8 = seed8.add(r4h);
+                seed1 = seed8.bitxor(r1l);
+            }
 
             bytes = &bytes[64..];
-
-            seed5 = seed5.add(r1h);
-            seed2 = seed5.bitxor(r2l);
-            seed6 = seed6.add(r2h);
-            seed3 = seed6.bitxor(r3l);
-            seed7 = seed7.add(r3h);
-            seed4 = seed7.bitxor(r4l);
-            seed8 = seed8.add(r4h);
-            seed1 = seed8.bitxor(r1l);
             if bytes.len() < 64 {
                 break;
             }
@@ -127,29 +130,34 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         seed5 = seed5.bitxor(seed6).bitxor(seed7).bitxor(seed8);
         seed1 = seed1.bitxor(seed2).bitxor(seed3).bitxor(seed4);
     }
-    if bytes.len() > 31 {
-        let tmp1 = read_word(bytes);
-        let tmp2 = read_word(&bytes[8..]);
-        let tmp3 = read_word(&bytes[16..]);
-        let tmp4 = read_word(&bytes[24..]);
-        let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
-        seed5 = seed5.add(r1h);
-        seed1 = seed5.bitxor(r1l);
+    if bytes.len() >= 32 {
+        // SAFETY: bytes.len() >= 32
+        unsafe {
+            let tmp1 = read_word(bytes);
+            let tmp2 = read_word(&bytes[8..]);
+            let tmp3 = read_word(&bytes[16..]);
+            let tmp4 = read_word(&bytes[24..]);
+            let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
+            seed5 = seed5.add(r1h);
+            seed1 = seed5.bitxor(r1l);
 
-
-        let (r2l, r2h) = multiply128(tmp3.bitxor(seed1), tmp4.bitxor(seed5));
-        seed5 = seed5.add(r2h);
-        seed1 = seed5.bitxor(r2l);
+            let (r2l, r2h) = multiply128(tmp3.bitxor(seed1), tmp4.bitxor(seed5));
+            seed5 = seed5.add(r2h);
+            seed1 = seed5.bitxor(r2l);
+        }
 
         bytes = &bytes[32..];
     }
 
     if bytes.len() >= 16 {
-        let tmp1 = read_word(bytes);
-        let tmp2 = read_word(&bytes[8..]);
-        let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
-        seed5 = seed5.add(r1h);
-        seed1 = seed5.bitxor(r1l);
+        // SAFETY: bytes.len() >= 16
+        unsafe {
+            let tmp1 = read_word(bytes);
+            let tmp2 = read_word(&bytes[8..]);
+            let (r1l, r1h) = multiply128(tmp1.bitxor(seed1), tmp2.bitxor(seed5));
+            seed5 = seed5.add(r1h);
+            seed1 = seed5.bitxor(r1l);
+        }
 
         bytes = &bytes[16..];
     }
@@ -157,14 +165,13 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
     return komihash_finish(bytes, seed1, seed5);
 }
 #[inline]
-fn komihash_finish(mut bytes: &[u8],
-                   mut seed1: Wrapping<u64>,
-                   mut seed5: Wrapping<u64>) -> u64 {
+fn komihash_finish(mut bytes: &[u8], mut seed1: Wrapping<u64>, mut seed5: Wrapping<u64>) -> u64 {
     let mut r2l = seed1;
     let mut r2h = seed5;
 
     if komihash_likely(bytes.len() >= 8) {
-        let b0 = read_word(bytes);
+        // SAFETY: bytes.len() >= 8
+        let b0 = unsafe { read_word(bytes) };
         let tmp = r2l.bitxor(b0);
         r2l = r2h;
         r2h = tmp;
@@ -232,15 +239,18 @@ impl StreamedKomihash {
 
     #[inline]
     fn process_buffer(&mut self) {
-        let b0 = read_word(&self.buffer[0..]);
-        let b1 = read_word(&self.buffer[8..]);
-        let b2 = read_word(&self.buffer[16..]);
-        let b3 = read_word(&self.buffer[24..]);
-        let b4 = read_word(&self.buffer[32..]);
-        let b5 = read_word(&self.buffer[40..]);
-        let b6 = read_word(&self.buffer[48..]);
-        let b7 = read_word(&self.buffer[56..]);
-        self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
+        // SAFETY: self.buffer.len() is exactly 64
+        unsafe {
+            let b0 = read_word(&self.buffer[0..]);
+            let b1 = read_word(&self.buffer[8..]);
+            let b2 = read_word(&self.buffer[16..]);
+            let b3 = read_word(&self.buffer[24..]);
+            let b4 = read_word(&self.buffer[32..]);
+            let b5 = read_word(&self.buffer[40..]);
+            let b6 = read_word(&self.buffer[48..]);
+            let b7 = read_word(&self.buffer[56..]);
+            self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
+        }
     }
 
     #[inline]
@@ -296,37 +306,43 @@ impl StreamedKomihash {
         }
         let mut remaining = &self.buffer[0..(self.bytes_count & 0x3F)];
 
-        if remaining.len() > 31 {
-            let b0 = read_word(&remaining[0..]);
-            let b1 = read_word(&remaining[8..]);
-            let b2 = read_word(&remaining[16..]);
-            let b3 = read_word(&remaining[24..]);
+        if remaining.len() >= 32 {
+            // SAFETY: bytes.len() >= 32
+            unsafe {
+                let b0 = read_word(&remaining[0..]);
+                let b1 = read_word(&remaining[8..]);
+                let b2 = read_word(&remaining[16..]);
+                let b3 = read_word(&remaining[24..]);
 
-            let tmp1 = seed1.bitxor(b0);
-            let tmp2 = seed5.bitxor(b1);
-            let (r1l, r1h) = multiply128(tmp1, tmp2);
-            seed5 = seed5.add(r1h);
-            seed1 = seed5.bitxor(r1l);
+                let tmp1 = seed1.bitxor(b0);
+                let tmp2 = seed5.bitxor(b1);
+                let (r1l, r1h) = multiply128(tmp1, tmp2);
+                seed5 = seed5.add(r1h);
+                seed1 = seed5.bitxor(r1l);
 
-            let tmp3 = seed1.bitxor(b2);
-            let tmp4 = seed5.bitxor(b3);
+                let tmp3 = seed1.bitxor(b2);
+                let tmp4 = seed5.bitxor(b3);
 
-            let (r2l, r2h) = multiply128(tmp3, tmp4);
-            seed5 = seed5.add(r2h);
-            seed1 = seed5.bitxor(r2l);
+                let (r2l, r2h) = multiply128(tmp3, tmp4);
+                seed5 = seed5.add(r2h);
+                seed1 = seed5.bitxor(r2l);
+            }
 
             remaining = &remaining[32..];
         }
 
-        if remaining.len() > 15 {
-            let b0 = read_word(remaining);
-            let b1 = read_word(&remaining[8..]);
+        if remaining.len() >= 16 {
+            // SAFETY: reamining.len() >= 16
+            unsafe {
+                let b0 = read_word(remaining);
+                let b1 = read_word(&remaining[8..]);
 
-            let tmp1 = seed1.bitxor(b0);
-            let tmp2 = seed5.bitxor(b1);
-            let (r1l, r1h) = multiply128(tmp1, tmp2);
-            seed5 = seed5.add(r1h);
-            seed1 = seed5.bitxor(r1l);
+                let tmp1 = seed1.bitxor(b0);
+                let tmp2 = seed5.bitxor(b1);
+                let (r1l, r1h) = multiply128(tmp1, tmp2);
+                seed5 = seed5.add(r1h);
+                seed1 = seed5.bitxor(r1l);
+            }
 
             remaining = &remaining[16..];
         }
@@ -346,15 +362,18 @@ impl StreamedKomihash {
             }
 
             while bytes.len() >= 64 {
-                let b0 = read_word(&bytes[0..]);
-                let b1 = read_word(&bytes[8..]);
-                let b2 = read_word(&bytes[16..]);
-                let b3 = read_word(&bytes[24..]);
-                let b4 = read_word(&bytes[32..]);
-                let b5 = read_word(&bytes[40..]);
-                let b6 = read_word(&bytes[48..]);
-                let b7 = read_word(&bytes[56..]);
-                self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
+                // SAFETY: bytes.len() >= 64
+                unsafe {
+                    let b0 = read_word(&bytes[0..]);
+                    let b1 = read_word(&bytes[8..]);
+                    let b2 = read_word(&bytes[16..]);
+                    let b3 = read_word(&bytes[24..]);
+                    let b4 = read_word(&bytes[32..]);
+                    let b5 = read_word(&bytes[40..]);
+                    let b6 = read_word(&bytes[48..]);
+                    let b7 = read_word(&bytes[56..]);
+                    self.process_state(b0, b1, b2, b3, b4, b5, b6, b7);
+                }
                 bytes = &bytes[64..];
             }
         }
@@ -400,45 +419,94 @@ impl Hasher for KomiHasher {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::tests::test_vector_v5::{komihash_test_vector_extended, komihash_test_vector_official};
     use super::*;
     use crate::tests::test_vector_v5::TestSpec;
+    use crate::tests::test_vector_v5::{
+        komihash_test_vector_extended, komihash_test_vector_official,
+    };
 
     #[test]
     fn test_with_official_test_vector() {
-        for TestSpec{seed, input, output} in komihash_test_vector_official() {
-            assert_eq!(komihash(&input, seed), output, "content: {:?}, with seed {:?}", input, seed);
+        for TestSpec {
+            seed,
+            input,
+            output,
+        } in komihash_test_vector_official()
+        {
+            assert_eq!(
+                komihash(&input, seed),
+                output,
+                "content: {:?}, with seed {:?}",
+                input,
+                seed
+            );
             let mut hasher = StreamedKomihash::new_with_seed(seed);
             hasher.write(&input);
-            assert_eq!(hasher.finish(), output, "content: {:?}, with seed {:?}", input, seed);
+            assert_eq!(
+                hasher.finish(),
+                output,
+                "content: {:?}, with seed {:?}",
+                input,
+                seed
+            );
 
             for chunk_size in 1..63 {
                 let mut hasher = StreamedKomihash::new_with_seed(seed);
                 for chunk in input.chunks(chunk_size) {
                     hasher.write(chunk);
                 }
-                assert_eq!(hasher.finish(), output, "content: {:?}, chunked by: {:?}, with seed {:?}", input, chunk_size, seed);
+                assert_eq!(
+                    hasher.finish(),
+                    output,
+                    "content: {:?}, chunked by: {:?}, with seed {:?}",
+                    input,
+                    chunk_size,
+                    seed
+                );
             }
         }
     }
 
     #[test]
     fn test_with_extended_test_vector() {
-        for TestSpec{seed, input, output} in komihash_test_vector_extended() {
-            assert_eq!(komihash(&input, seed), output, "content: {:?}, with seed {:?}", input, seed);
+        for TestSpec {
+            seed,
+            input,
+            output,
+        } in komihash_test_vector_extended()
+        {
+            assert_eq!(
+                komihash(&input, seed),
+                output,
+                "content: {:?}, with seed {:?}",
+                input,
+                seed
+            );
             let mut hasher = StreamedKomihash::new_with_seed(seed);
             hasher.write(&input);
-            assert_eq!(hasher.finish(), output, "content: {:?}, with seed {:?}", input, seed);
+            assert_eq!(
+                hasher.finish(),
+                output,
+                "content: {:?}, with seed {:?}",
+                input,
+                seed
+            );
 
             for chunk_size in 1..63 {
                 let mut hasher = StreamedKomihash::new_with_seed(seed);
                 for chunk in input.chunks(chunk_size) {
                     hasher.write(chunk);
                 }
-                assert_eq!(hasher.finish(), output, "content: {:?}, chunked by: {:?}, with seed {:?}", input, chunk_size, seed);
+                assert_eq!(
+                    hasher.finish(),
+                    output,
+                    "content: {:?}, chunked by: {:?}, with seed {:?}",
+                    input,
+                    chunk_size,
+                    seed
+                );
             }
         }
     }
