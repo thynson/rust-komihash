@@ -80,7 +80,7 @@ fn komihash_finish(
         bytes = &bytes[8..];
     }
 
-    if komihash_likely(bytes.len() > 0) {
+    if komihash_likely(!bytes.is_empty()) {
         let ml8 = bytes.len() << 3;
         let b0 = read_partial_word(bytes);
         let fb = Wrapping(1u64 << (b0.0 >> (ml8 - 1)) << ml8);
@@ -97,7 +97,7 @@ fn komihash_finish(
     let (r4l, r4h) = multiply128(seed1, seed5);
     seed5 = seed5.add(r4h);
     seed1 = seed5.bitxor(r4l);
-    return seed1.0;
+    seed1.0
 }
 
 ///
@@ -113,7 +113,7 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
     seed5 = seed5.add(h);
     seed1 = seed5.bitxor(l);
 
-    if komihash_unlikely(bytes.len() == 0) {
+    if komihash_unlikely(bytes.is_empty()) {
         let (r3l, r3h) = multiply128(seed1, seed5);
         seed5 = seed5.add(r3h);
         seed1 = seed5.bitxor(r3l);
@@ -220,7 +220,7 @@ pub fn komihash(mut bytes: &[u8], seed: u64) -> u64 {
         bytes = &bytes[16..];
     }
 
-    return komihash_finish(bytes, seed1, seed5, last_word);
+    komihash_finish(bytes, seed1, seed5, last_word)
 }
 
 impl StreamedKomihash {
@@ -376,7 +376,7 @@ impl StreamedKomihash {
 
             remaining = &remaining[16..];
         }
-        return komihash_finish(remaining, seed1, seed5, last_word);
+        komihash_finish(remaining, seed1, seed5, last_word)
     }
 
     pub fn write(&mut self, mut bytes: &[u8]) {
@@ -524,7 +524,7 @@ impl Komirand {
             buffer = &mut buffer[2..];
         }
 
-        if buffer.len() > 0 {
+        if !buffer.is_empty() {
             buffer[0] = last as u8;
         }
     }
@@ -594,7 +594,7 @@ mod tests {
             for size in 1..127 {
                 let mut hasher = StreamedKomihash::new();
                 let mut bytes: &[u8] = &content;
-                while bytes.len() > 0 {
+                while !bytes.is_empty() {
                     let slice = &bytes[..min(bytes.len(), size)];
                     bytes = &bytes[slice.len()..];
                     hasher.write(slice);
@@ -609,7 +609,7 @@ mod tests {
                 let mut hasher = StreamedKomihash::new_with_seed(seed);
                 let mut bytes: &[u8] = &content;
 
-                while bytes.len() > 0 {
+                while !bytes.is_empty() {
                     let slice = &bytes[..min(bytes.len(), size)];
                     bytes = &bytes[slice.len()..];
                     hasher.write(slice);
@@ -640,8 +640,7 @@ mod tests {
         for (seed0, seed1, test_vector) in komi_rand_test_vector() {
             for buff_size in 1..96 {
                 let mut rand = Komirand::new(seed0, seed1);
-                let mut buff = Vec::<u8>::with_capacity(buff_size);
-                buff.resize(buff_size, 0);
+                let mut buff = vec![0; buff_size];
                 rand.fill_bytes(&mut buff);
                 let mut idx = 0;
                 for chunk in buff.chunks(8) {

@@ -2,14 +2,17 @@
 
 extern crate test;
 
-use std::hint::black_box;
-use test::Bencher;
 use komihash::v4::{komihash, Komirand};
+use std::hint::black_box;
 use std::time::SystemTime;
+use test::Bencher;
 
 fn bench_template<const N: u64, const SIZE: usize>(b: &mut Bencher) {
     let mut content = [0u8; SIZE];
-    let unix_timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64;
+    let unix_timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
     let mut rand = Komirand::init(unix_timestamp);
     rand.fill_bytes(&mut content);
     let mut n = 10;
@@ -74,32 +77,32 @@ fn bench_simple_with_00009bytes_x10_input(b: &mut Bencher) {
 
 #[bench]
 fn bench_simple_with_00010bytes_x10_input(b: &mut Bencher) {
-    bench_template::<10,10>(b);
+    bench_template::<10, 10>(b);
 }
 
 #[bench]
 fn bench_simple_with_00011bytes_x10_input(b: &mut Bencher) {
-    bench_template::<10,11>(b);
+    bench_template::<10, 11>(b);
 }
 
 #[bench]
 fn bench_simple_with_00012bytes_x10_input(b: &mut Bencher) {
-    bench_template::<10,12>(b);
+    bench_template::<10, 12>(b);
 }
 
 #[bench]
 fn bench_simple_with_00013bytes_x10_input(b: &mut Bencher) {
-    bench_template::<10,13>(b);
+    bench_template::<10, 13>(b);
 }
 
 #[bench]
 fn bench_simple_with_00014bytes_x10_input(b: &mut Bencher) {
-    bench_template::<10,10>(b);
+    bench_template::<10, 10>(b);
 }
 
 #[bench]
 fn bench_simple_with_00015bytes_x10_input(b: &mut Bencher) {
-    bench_template::<10,10>(b);
+    bench_template::<10, 10>(b);
 }
 
 #[bench]

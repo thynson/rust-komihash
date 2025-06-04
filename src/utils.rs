@@ -31,7 +31,7 @@ pub fn multiply128(m1: Wrapping<u64>, m2: Wrapping<u64>) -> (Wrapping<u64>, Wrap
 #[inline(always)]
 pub unsafe fn read_word(buffer: &[u8]) -> Wrapping<u64> {
     unsafe {
-        return Wrapping(u64::from_le_bytes(*(buffer.as_ptr() as *const _)));
+        Wrapping(u64::from_le_bytes(*(buffer.as_ptr() as *const _)))
     }
 }
 
@@ -53,7 +53,7 @@ pub fn read_partial_word(mut buff: &[u8]) -> Wrapping<u64> {
             shift += 16;
         }
 
-        if buff.len() > 0 {
+        if !buff.is_empty() {
             ret |= (buff[0] as u64) << shift;
         }
     }

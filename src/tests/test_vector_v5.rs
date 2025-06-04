@@ -291,46 +291,35 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
     //     bulk_buffer.push(i as u8);
     // }
     //
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("This is a 32-byte tester string."),
-            output: 0x8e92e061278366d2,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("This is a 32-byte tester string."),
+        output: 0x8e92e061278366d2,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("The cat is out of the bag"),
-            output: 0xd15723521d3c37b1,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("The cat is out of the bag"),
+        output: 0xd15723521d3c37b1,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("A 16-byte string"),
-            output: 0x467caa28ea3da7a6,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("A 16-byte string"),
+        output: 0x467caa28ea3da7a6,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("The new string"),
-            output: 0xf18e67bc90c43233,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("The new string"),
+        output: 0xf18e67bc90c43233,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("7 bytes"),
-            output: 0xe72e558f5eaf2554,
-        }
-    );
-
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("7 bytes"),
+        output: 0xe72e558f5eaf2554,
+    });
 
     /*
 
@@ -373,59 +362,45 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
         (80, 0x1d4c1d97ca684334),
         (112, 0xd1a425d530652287),
         (132, 0x72623be342c20ab5),
-        (256, 0x94c3dbdca59ddf57)
+        (256, 0x94c3dbdca59ddf57),
     ];
 
-
     for (size, result) in bulk_table {
-        test_vector.push(
-            TestSpec {
-                seed,
-                input: BULK_BUFFER[0..size].to_vec(),
-                output: result,
-            }
-        );
+        test_vector.push(TestSpec {
+            seed,
+            input: BULK_BUFFER[0..size].to_vec(),
+            output: result,
+        });
     }
 
     let seed = 0x0123456789abcdefu64;
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("This is a 32-byte testing string"),
-            output: 0x6ce66a2e8d4979a5,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("This is a 32-byte testing string"),
+        output: 0x6ce66a2e8d4979a5,
+    });
 
-
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("The cat is out of the bag"),
-            output: 0x5b1da0b43545d196,
-        }
-    );
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("A 16-byte string"),
-            output: 0x26af914213d0c915,
-        }
-    );
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("The new string"),
-            output: 0x62d9ca1b73250cb5,
-        }
-    );
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("7 chars"),
-            output: 0x90ab7c9f831cd940,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("The cat is out of the bag"),
+        output: 0x5b1da0b43545d196,
+    });
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("A 16-byte string"),
+        output: 0x26af914213d0c915,
+    });
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("The new string"),
+        output: 0x62d9ca1b73250cb5,
+    });
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("7 chars"),
+        output: 0x90ab7c9f831cd940,
+    });
 
     /*
 
@@ -467,17 +442,15 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
         (80, 0x25f83ee520c1d241),
         (112, 0xd6007417091cd4c0),
         (132, 0x3e49c2d3727b9cc9),
-        (256, 0xb2b3405ee5d65f4c)
+        (256, 0xb2b3405ee5d65f4c),
     ];
 
     for (size, result) in bulk_table {
-        test_vector.push(
-            TestSpec {
-                seed,
-                input: BULK_BUFFER[0..size].to_vec(),
-                output: result,
-            }
-        );
+        test_vector.push(TestSpec {
+            seed,
+            input: BULK_BUFFER[0..size].to_vec(),
+            output: result,
+        });
     }
 
     let seed = 0x0000000000000100u64;
@@ -509,45 +482,35 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
 
     */
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("This is a 32-byte testing string"),
-            output: 0x5f197b30bcec1e45,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("This is a 32-byte testing string"),
+        output: 0x5f197b30bcec1e45,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("The cat is out of the bag"),
-            output: 0xa761280322bb7698,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("The cat is out of the bag"),
+        output: 0xa761280322bb7698,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("A 16-byte string"),
-            output: 0x11c31ccabaa524f1,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("A 16-byte string"),
+        output: 0x11c31ccabaa524f1,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("The new string"),
-            output: 0x3a43b7f58281c229,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("The new string"),
+        output: 0x3a43b7f58281c229,
+    });
 
-    test_vector.push(
-        TestSpec {
-            seed,
-            input: Vec::from("7 chars"),
-            output: 0xcff90b0466b7e3a2,
-        }
-    );
+    test_vector.push(TestSpec {
+        seed,
+        input: Vec::from("7 chars"),
+        output: 0xcff90b0466b7e3a2,
+    });
 
     let bulk_table: [(usize, u64); 17] = [
         (3, 0x8ab53f45cc9315e3),
@@ -566,33 +529,28 @@ pub fn komihash_test_vector_official() -> Vec<TestSpec> {
         (80, 0x76f0bb380bc207be),
         (112, 0x4afb4e08ca77c020),
         (132, 0x410f9c129ad88aea),
-        (256, 0x066c7b25f4f569ae)
+        (256, 0x066c7b25f4f569ae),
     ];
 
     for (size, result) in bulk_table {
-        test_vector.push(
-            TestSpec {
-                seed,
-                input: BULK_BUFFER[0..size].to_vec(),
-                output: result,
-            }
-        );
+        test_vector.push(TestSpec {
+            seed,
+            input: BULK_BUFFER[0..size].to_vec(),
+            output: result,
+        });
     }
 
     test_vector
 }
 
-pub fn komihash_test_vector_extended() -> Vec<TestSpec>{
+pub fn komihash_test_vector_extended() -> Vec<TestSpec> {
     let mut vec = Vec::<TestSpec>::new();
     for (seed, len, result) in EXTENDED_TEST_VECTOR {
-        vec.push(
-            TestSpec {
-                seed,
-                input: BULK_BUFFER[0..len].into(),
-                output: result,
-            }
-        );
+        vec.push(TestSpec {
+            seed,
+            input: BULK_BUFFER[0..len].into(),
+            output: result,
+        });
     }
     vec
 }
-
