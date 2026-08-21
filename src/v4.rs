@@ -510,7 +510,11 @@ impl Komirand {
             buffer = &mut buffer[8..];
         }
 
-        let mut last = self.next();
+        let mut last = if buffer.is_empty() {
+            return;
+        } else {
+            self.next()
+        };
 
         if buffer.len() >= 4 {
             buffer[..4].copy_from_slice(&(last as u32).to_le_bytes()[..4]);
@@ -660,6 +664,38 @@ mod tests {
                     idx += 1;
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_fill_bytes_stream_continuity() {
+        // A fill of N bytes must consume exactly the outputs the raw next()
+        // stream would, without skipping values between calls, and without
+        // advancing the state on empty fills.
+        for (s1, s2, _) in komi_rand_test_vector() {
+            // Two fills of 8 bytes must produce the same 16 bytes as one fill
+            // of 16 bytes.
+            let mut one = Komirand::new(s1, s2);
+            let mut buf16 = [0u8; 16];
+            one.fill_bytes(&mut buf16);
+
+            let mut two = Komirand::new(s1, s2);
+            let mut buf8 = [0u8; 8];
+            two.fill_bytes(&mut buf8);
+            let first8 = buf8;
+            two.fill_bytes(&mut buf8);
+
+            assert_eq!(&buf16[..8], &first8[..]);
+            assert_eq!(&buf16[8..], &buf8[..]);
+
+            // Empty fills must not advance the generator.
+            let mut with_empty = Komirand::new(s1, s2);
+            with_empty.fill_bytes(&mut []);
+            with_empty.fill_bytes(&mut [0u8; 0]);
+            let out = with_empty.next();
+
+            let mut plain = Komirand::new(s1, s2);
+            assert_eq!(out, plain.next());
         }
     }
 }
