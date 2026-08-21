@@ -27,12 +27,13 @@ pub fn multiply128(m1: Wrapping<u64>, m2: Wrapping<u64>) -> (Wrapping<u64>, Wrap
     (Wrapping(u128 as u64), Wrapping((u128 >> 64) as u64))
 }
 
-/// SAFETY: Caller must ensure [`buffer`] has more than 8 bytes
+/// SAFETY: Caller must ensure [`buffer`] has at least 8 bytes
 #[inline(always)]
 pub unsafe fn read_word(buffer: &[u8]) -> Wrapping<u64> {
-    unsafe {
-        Wrapping(u64::from_le_bytes(*(buffer.as_ptr() as *const _)))
-    }
+    // Note: the buffer may be unaligned (a &[u8] only guarantees alignment 1),
+    // so we must use an unaligned read. On x86_64/aarch64 this compiles to the
+    // same single load an aligned read would.
+    unsafe { Wrapping(buffer.as_ptr().cast::<u64>().read_unaligned().to_le()) }
 }
 
 #[inline(always)]
@@ -42,13 +43,13 @@ pub fn read_partial_word(mut buff: &[u8]) -> Wrapping<u64> {
     // SAFETY: size of buff is always checked
     unsafe {
         if buff.len() >= 4 {
-            ret |= u32::from_le_bytes(*(buff.as_ptr() as *const _)) as u64;
+            ret |= buff.as_ptr().cast::<u32>().read_unaligned().to_le() as u64;
             buff = &buff[4..];
             shift += 32;
         }
 
         if buff.len() >= 2 {
-            ret |= (u16::from_le_bytes(*(buff.as_ptr() as *const _)) as u64) << shift;
+            ret |= (buff.as_ptr().cast::<u16>().read_unaligned().to_le() as u64) << shift;
             buff = &buff[2..];
             shift += 16;
         }
