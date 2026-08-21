@@ -21,8 +21,117 @@ use std::hash::Hasher;
 use std::num::Wrapping;
 use std::ops::{Add, BitXor};
 
-// Komirand does not change since v4, so we can just re-export it.
-pub use crate::v4::Komirand;
+// Komihash v5.34+ changed the komirand recurrence, so v5 has its own
+// implementation. See https://github.com/avaneev/komihash (komirand function).
+pub struct Komirand {
+    s1: Wrapping<u64>,
+    s2: Wrapping<u64>,
+}
+
+impl Komirand {
+    ///
+    /// Creates a Komirand instance with the given seeds.
+    ///
+    /// Note: seeds can be initialized to any value (even 0), but the state
+    /// should be warmed up (e.g. via [`Komirand::init`]) before use if the
+    /// seeds are not high-quality random values.
+    ///
+    pub const fn new(s1: u64, s2: u64) -> Self {
+        Self {
+            s1: Wrapping(s1),
+            s2: Wrapping(s2),
+        }
+    }
+
+    ///
+    /// Creates a Komirand instance with the a given seed, and warmup the state before returning.
+    ///
+    pub fn init(seed: u64) -> Self {
+        let mut ret = Self::new(seed, seed);
+
+        // warming up
+        ret.next();
+        ret.next();
+        ret.next();
+        ret.next();
+
+        ret
+    }
+
+    ///
+    /// Create a new Komirand instance with two seeds, and warmup the state before returning.
+    ///
+    pub fn init_with_extra_seed(s1: u64, s2: u64) -> Self {
+        let mut ret = Self::new(s1, s2);
+
+        // warming up
+        ret.next();
+        ret.next();
+        ret.next();
+        ret.next();
+
+        ret
+    }
+
+    ///
+    /// Advances the generator and returns the next 64-bit value.
+    ///
+    /// This implements the komirand recurrence used by komihash v5.34+:
+    ///
+    /// ```text
+    /// (lo, hi) = s1 * s2 (128-bit)
+    /// s1' = (lo ^ hi) + 0x5555555555555555
+    /// s2' = s2 + hi + 0xAAAAAAAAAAAAAAAA
+    /// ```
+    ///
+    /// Note: the output stream differs from [`crate::v4::Komirand`].
+    ///
+    pub fn next(&mut self) -> u64 {
+        let (lo, hi) = multiply128(self.s1, self.s2);
+        let mut s1 = lo.bitxor(hi);
+        let mut s2 = self.s2.add(hi);
+        s2 += Wrapping(0xaaaaaaaaaaaaaaaau64);
+        s1 += Wrapping(0x5555555555555555u64);
+        self.s1 = s1;
+        self.s2 = s2;
+        s1.0
+    }
+
+    ///
+    /// Fills the buffer with pseudorandom bytes, in little-endian order.
+    ///
+    /// A fill of N bytes consumes exactly the generator outputs that `next()`
+    /// would produce for those bytes; empty fills do not advance the state.
+    ///
+    pub fn fill_bytes(&mut self, mut buffer: &mut [u8]) {
+        while buffer.len() >= 8 {
+            buffer[..8].copy_from_slice(&self.next().to_le_bytes());
+            buffer = &mut buffer[8..];
+        }
+
+        if buffer.is_empty() {
+            return;
+        }
+
+        let mut last = self.next();
+
+        if buffer.len() >= 4 {
+            buffer[..4].copy_from_slice(&(last as u32).to_le_bytes()[..4]);
+            last >>= 32;
+            buffer = &mut buffer[4..];
+        }
+
+        if buffer.len() >= 2 {
+            buffer[..2].copy_from_slice(&(last as u16).to_le_bytes()[..2]);
+            last >>= 16;
+            buffer = &mut buffer[2..];
+        }
+
+        if !buffer.is_empty() {
+            buffer[0] = last as u8;
+        }
+    }
+}
 
 const KOMI_HASH_INTERNAL_BUFF_SIZE: usize = 64;
 
@@ -509,5 +618,41 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_komirand_v5_reference_vectors() {
+        // Golden values generated from the komihash v5.34+ reference
+        // recurrence (see komirand() in upstream komihash.h).
+        let mut rand = Komirand::init(0x1234567890abcdef);
+        assert_eq!(rand.next(), 0xb1b3fa0ce9e8fc12);
+        assert_eq!(rand.next(), 0x873b3a41c1b9ada4);
+        assert_eq!(rand.next(), 0x90ade4d9d4828c88);
+        assert_eq!(rand.next(), 0x4887cba64ef55ec4);
+
+        // Zero seed self-starts after warmup.
+        assert_eq!(Komirand::init(0).next(), 0x1c42877a440ae8ee);
+    }
+
+    #[test]
+    fn test_komirand_v5_fill_bytes_stream_continuity() {
+        let mut one = Komirand::new(42, 42);
+        let mut buf16 = [0u8; 16];
+        one.fill_bytes(&mut buf16);
+
+        let mut two = Komirand::new(42, 42);
+        let mut buf8 = [0u8; 8];
+        two.fill_bytes(&mut buf8);
+        let first8 = buf8;
+        two.fill_bytes(&mut buf8);
+
+        assert_eq!(&buf16[..8], &first8[..]);
+        assert_eq!(&buf16[8..], &buf8[..]);
+
+        let mut with_empty = Komirand::new(42, 42);
+        with_empty.fill_bytes(&mut []);
+        let out = with_empty.next();
+        let mut plain = Komirand::new(42, 42);
+        assert_eq!(out, plain.next());
     }
 }
